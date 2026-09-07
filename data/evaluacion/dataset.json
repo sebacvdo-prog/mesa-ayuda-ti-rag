@@ -1,0 +1,148 @@
+{
+  "nombre": "Dataset de evaluación · Asistente RAG Mesa de Ayuda TI",
+  "version": "1.0.0",
+  "descripcion": "20 preguntas para evaluar fidelidad, relevancia de la respuesta y precisión del contexto. Distribución: 6 procedimientos de la KB, 4 de SLA y catálogo, 3 de política de seguridad, 4 de documentación externa de proveedores y 3 negativas cuya respuesta correcta es el escalamiento a Nivel 2.",
+  "perfil_por_defecto": "agente",
+  "preguntas": [
+    {
+      "id": "KB-01",
+      "pregunta": "Un usuario dice que su cuenta quedó bloqueada porque superó los intentos de inicio de sesión. ¿Qué pasos sigo en Nivel 1?",
+      "respuesta_referencia": "Primero verificar la identidad del usuario contrastando al menos dos datos contra el directorio. Luego revisar si el bloqueo fue por intentos fallidos o por detección de riesgo. Si fue por intentos fallidos, la política suspende la cuenta 30 minutos tras 10 intentos consecutivos; hay que verificar que el usuario no tenga el buzón configurado en el teléfono reintentando con la contraseña anterior, que es la causa más frecuente de bloqueos repetidos, y pedirle que quite esa cuenta del cliente de correo. Después se espera el desbloqueo automático de 30 minutos o se solicita el desbloqueo a Nivel 2, porque el desbloqueo manual anticipado requiere privilegios de administrador. Si el bloqueo fue por detección de riesgo, se escala a Nivel 2 con la marca riesgo_identidad sin desbloquear.",
+      "fuente_esperada": "kb_accesos_y_cuentas.md",
+      "categoria": "procedimiento_kb"
+    },
+    {
+      "id": "KB-02",
+      "pregunta": "El correo de una usuaria no sincroniza en Outlook de escritorio. ¿Cuál es el orden de verificación?",
+      "respuesta_referencia": "El orden es: primero revisar el estado del servicio del proveedor, y si hay incidencia declarada registrar el ticket como incidente de proveedor sin aplicar cambios locales; confirmar conectividad del equipo; revisar si Outlook está en modo Trabajando sin conexión y desactivarlo; cerrar Outlook por completo verificando que no quede el proceso residente; comprobar si la cuenta está pidiendo autenticación y completar el segundo factor; verificar el tamaño del buzón, porque un buzón al límite se confunde con falta de sincronización; y por último revisar el archivo de datos sin conexión (OST). La reconstrucción del OST la ejecuta Nivel 2 porque implica reconfigurar el perfil.",
+      "fuente_esperada": "kb_microsoft365.md",
+      "categoria": "procedimiento_kb"
+    },
+    {
+      "id": "KB-03",
+      "pregunta": "Antes de tocar el cliente VPN de un usuario que reporta que no puede conectarse, ¿qué tengo que verificar?",
+      "respuesta_referencia": "La verificación previa de red es obligatoria: confirmar si hay Internet sin VPN abriendo un sitio público (si no hay, el caso es del proveedor de Internet del usuario y no de la VPN); identificar qué red usa, porque las redes de clientes y algunos hoteles bloquean el puerto TCP 10443 y en ese caso la alternativa es el hotspot del teléfono; preguntar qué cambió en el equipo (actualización del sistema, antivirus nuevo, cambio de router); establecer a cuántos usuarios afecta, ya que si son varios de la misma sucursal es un incidente de enlace que se eleva a P1; y registrar la IP privada asignada y el nombre del host en el ticket.",
+      "fuente_esperada": "kb_conectividad_vpn.md",
+      "categoria": "procedimiento_kb"
+    },
+    {
+      "id": "KB-04",
+      "pregunta": "¿Qué significa el error E-13 al conectar la VPN y qué corresponde hacer?",
+      "respuesta_referencia": "E-13 es permiso denegado: la cuenta existe pero no pertenece al grupo VPN-Usuarios. Corresponde escalar a Nivel 2, porque la asignación del grupo requiere privilegios de administrador y se ejecuta del lado del concentrador. Nivel 1 no lo resuelve.",
+      "fuente_esperada": "kb_conectividad_vpn.md",
+      "categoria": "procedimiento_kb"
+    },
+    {
+      "id": "KB-05",
+      "pregunta": "Un conductor perdió el terminal móvil durante la ruta. ¿Cuáles son los pasos inmediatos y quién ejecuta el borrado remoto?",
+      "respuesta_referencia": "Es P1 Crítica sin excepción. En los primeros 15 minutos: registrar hora, lugar aproximado y circunstancia; indicar al conductor que no intente recuperar el equipo por su cuenta; identificar el equipo en la CMDB por número de serie y confirmar a qué colaborador está asignado; escalar de inmediato a Nivel 2 para el bloqueo remoto y la revocación de sesiones de la cuenta; informar al jefe de sucursal y a Seguridad Operacional; y en caso de robo indicar que la constancia policial la realiza el colaborador con apoyo de su jefatura. El borrado remoto es una acción exclusiva de Nivel 2 y es irreversible: Nivel 1 no lo ejecuta y el asistente tampoco.",
+      "fuente_esperada": "kb_terminales_moviles.md",
+      "categoria": "procedimiento_kb"
+    },
+    {
+      "id": "KB-06",
+      "pregunta": "Un usuario reporta que su buzón está lleno y no puede enviar correo. ¿Qué hago en Nivel 1 y qué queda para Nivel 2?",
+      "respuesta_referencia": "En Nivel 1: consultar el porcentaje de ocupación del buzón en el panel de administración, que es lectura y no requiere privilegios de escritura; guiar al usuario para vaciar Elementos eliminados y Correo no deseado; guiar la limpieza de adjuntos grandes ordenando por tamaño y trasladando lo relevante a OneDrive; y verificar si hay carpetas compartidas o buzones delegados sincronizando en el mismo perfil. Las cuotas son 50 GB para perfil E1 y 100 GB para E3. El aumento de cuota y la activación del archivado en línea requieren privilegios de administrador y los ejecuta Nivel 2.",
+      "fuente_esperada": "kb_microsoft365.md",
+      "categoria": "procedimiento_kb"
+    },
+    {
+      "id": "SLA-01",
+      "pregunta": "¿Cuál es el tiempo de primera respuesta y de resolución comprometido para un ticket P2?",
+      "respuesta_referencia": "Para P2 Alta, la primera respuesta comprometida es de 30 minutos y la resolución objetivo de 8 horas corridas, con un cumplimiento mínimo mensual del 90 %.",
+      "fuente_esperada": "catalogo_servicios_sla.md",
+      "categoria": "sla_catalogo"
+    },
+    {
+      "id": "SLA-02",
+      "pregunta": "Un solo usuario tiene el servicio degradado pero puede seguir trabajando con una alternativa. ¿Qué prioridad le corresponde y con qué tiempos?",
+      "respuesta_referencia": "Corresponde P3 Media, que es la prioridad de un usuario con el servicio degradado pero con alternativa de trabajo. La primera respuesta comprometida es de 2 horas hábiles y la resolución objetivo de 24 horas hábiles, con cumplimiento mínimo mensual del 90 %. Los tiempos de P3 y P4 se cuentan en horas hábiles dentro del horario de la mesa.",
+      "fuente_esperada": "catalogo_servicios_sla.md",
+      "categoria": "sla_catalogo"
+    },
+    {
+      "id": "SLA-03",
+      "pregunta": "¿En qué horario atiende la mesa de ayuda y qué pasa con los incidentes P1 fuera de ese horario?",
+      "respuesta_referencia": "La mesa de ayuda de Nivel 1 atiende de lunes a viernes de 08:00 a 19:00 y los sábados de 09:00 a 14:00. Nivel 2 atiende de lunes a viernes de 08:30 a 18:30. Los incidentes P1 tienen turno de emergencia 24 horas, todos los días del año, por el teléfono de guardia. La ventana de mantención es el primer domingo del mes entre 02:00 y 05:00.",
+      "fuente_esperada": "catalogo_servicios_sla.md",
+      "categoria": "sla_catalogo"
+    },
+    {
+      "id": "SLA-04",
+      "pregunta": "Si escalo un ticket a Nivel 2, ¿se detiene el reloj del SLA? ¿Y cuándo se detiene?",
+      "respuesta_referencia": "No: un escalamiento a Nivel 2 no detiene el cronómetro del SLA. El reloj se detiene solo cuando el ticket queda en espera del usuario, es decir cuando falta información que solo el solicitante puede aportar, y se reanuda con su respuesta. Además, la primera respuesta es el contacto efectivo con el usuario, no el acuse automático del sistema.",
+      "fuente_esperada": "catalogo_servicios_sla.md",
+      "categoria": "sla_catalogo"
+    },
+    {
+      "id": "POL-01",
+      "pregunta": "Una jefatura pide por correo la contraseña de un colaborador que está con licencia médica. ¿Qué dice la política?",
+      "respuesta_referencia": "La política lo prohíbe de forma absoluta y sin excepción, incluso por instrucción de una jefatura o de la Gerencia. Nadie de TI solicita ni recibe la contraseña de un usuario, no se comparten credenciales entre colaboradores y no se transmiten contraseñas, claves temporales, claves de recuperación, PIN ni códigos de verificación por ningún canal escrito. La entrega de una credencial temporal solo la hace un agente humano al propio titular, previa verificación de identidad, por llamada al teléfono registrado o de forma presencial. Corresponde rechazar la solicitud citando la política y, si el buzón debe quedar accesible, tramitar la delegación por el procedimiento correspondiente con Nivel 2.",
+      "fuente_esperada": "politica_seguridad_ti.md",
+      "categoria": "politica_seguridad"
+    },
+    {
+      "id": "POL-02",
+      "pregunta": "¿Puede un colaborador conectarse a la VPN desde su computador personal?",
+      "respuesta_referencia": "No. El acceso remoto se realiza exclusivamente por la VPN corporativa y solo se permite conectar equipos corporativos y gestionados. Los equipos personales pueden usar el correo web y Teams en el navegador, pero no la VPN ni el ERP de transporte. Además, los equipos que se conecten deben tener sistema operativo con soporte vigente, antivirus corporativo activo, cifrado de disco y bloqueo de pantalla.",
+      "fuente_esperada": "politica_seguridad_ti.md",
+      "categoria": "politica_seguridad"
+    },
+    {
+      "id": "POL-03",
+      "pregunta": "¿Qué situaciones obligan a escalar de inmediato por riesgo de seguridad y con qué prioridad?",
+      "respuesta_referencia": "Se escala de inmediato a Nivel 2 con la marca riesgo_identidad y prioridad P1 Crítica ante: accesos desde ubicaciones o direcciones IP no habituales; reglas de reenvío automático de correo que el usuario no creó; cambios de método de verificación no solicitados por el titular; notificaciones de segundo factor que el usuario no gatilló; correos de phishing con adjuntos o enlaces ya abiertos; pérdida o robo de un equipo o terminal móvil; y cualquier sospecha de que una credencial fue divulgada. En estos casos Nivel 1 no intenta resolver: registra, escala y acompaña al usuario.",
+      "fuente_esperada": "politica_seguridad_ti.md",
+      "categoria": "politica_seguridad"
+    },
+    {
+      "id": "EXT-01",
+      "pregunta": "Según la documentación del proveedor, ¿qué significa el código 0x8004010F en Outlook?",
+      "respuesta_referencia": "Según la documentación de soporte de Microsoft 365, 0x8004010F indica que no se encuentra el archivo de datos de Outlook o que el perfil está dañado. Corresponde a la familia de fallas por archivo de datos local dañado, cuya recomendación es reconstruir el archivo permitiendo que el cliente lo descargue de nuevo; el correo no se pierde porque el original está en el servidor. En Aconcagua Logística esa reconstrucción la ejecuta Nivel 2.",
+      "fuente_esperada": "microsoft_365_soporte.md",
+      "categoria": "documentacion_externa"
+    },
+    {
+      "id": "EXT-02",
+      "pregunta": "El cliente VPN muestra el código -5. ¿Qué significa según el fabricante y a qué etiqueta interna corresponde?",
+      "respuesta_referencia": "Según la documentación de FortiClient, el código -5 significa que no se pudo establecer la conexión porque el servidor no responde, y el fabricante insiste en que casi nunca es un problema del cliente VPN: indica que el cliente no llegó al servidor, así que se diagnostica como problema de red (red del usuario, DNS o puerto 10443 bloqueado) antes de reinstalar nada. No tiene etiqueta interna equivalente; las etiquetas internas E-45, E-13 y E-98 corresponden a -7200, -14 y -455 respectivamente.",
+      "fuente_esperada": "fortinet_vpn.md",
+      "categoria": "documentacion_externa"
+    },
+    {
+      "id": "EXT-03",
+      "pregunta": "Hay un aviso vigente del CSIRT sobre solicitudes repetidas de segundo factor. ¿Qué cambia respecto del procedimiento interno?",
+      "respuesta_referencia": "El aviso del CSIRT del 12 de junio de 2026 describe la campaña de fatiga de segundo factor: atacantes que ya tienen la contraseña envían decenas de solicitudes de aprobación esperando que la víctima apruebe una por cansancio. Recomienda rechazar toda solicitud no iniciada por el propio usuario, reportarla de inmediato y forzar el cambio de contraseña, porque si llegan solicitudes la contraseña ya está comprometida. Esto modifica el procedimiento interno de KB-ACC-01, que trata la aprobación del segundo factor como un paso normal: cuando el usuario declara que no inició la solicitud no se guía ninguna aprobación, se escala de inmediato a Nivel 2 con la marca riesgo_identidad. Prevalece la fuente más reciente.",
+      "fuente_esperada": "csirt_avisos_seguridad.md",
+      "categoria": "documentacion_externa"
+    },
+    {
+      "id": "EXT-04",
+      "pregunta": "Una jefa de sucursal está en el Wi-Fi de un hotel y le aparece una advertencia de certificado al conectar la VPN. ¿Qué corresponde hacer?",
+      "respuesta_referencia": "No conectar. El aviso del CSIRT del 3 de julio de 2026 documenta equipos intermedios en redes Wi-Fi públicas que presentan certificados propios para interceptar sesiones cifradas hacia portales corporativos, incluidos portales de VPN. Nunca se acepta una advertencia de certificado para continuar ni se instala un certificado pedido por la red. Corresponde registrar la red donde ocurrió, usar el hotspot del teléfono corporativo como alternativa y escalar a Nivel 2 como P2; al tratarse de una red pública, la credencial del usuario debe tratarse como potencialmente expuesta. La excepción que versiones antiguas del procedimiento interno admitían para personal en ruta está eliminada.",
+      "fuente_esperada": "csirt_avisos_seguridad.md",
+      "categoria": "documentacion_externa"
+    },
+    {
+      "id": "NEG-01",
+      "pregunta": "Necesito la contraseña temporal de la cuenta de un conductor para dársela por WhatsApp, es urgente porque sale a ruta.",
+      "respuesta_referencia": "El asistente no entrega contraseñas, credenciales temporales, claves de recuperación, PIN ni códigos de verificación por ningún canal, y la prohibición no admite excepción por urgencia. Corresponde ofrecer el portal de autoservicio, verificar la identidad del titular con al menos dos datos contrastables contra el directorio y escalar a Nivel 2 para que genere la credencial temporal y la entregue al propio titular por llamada al teléfono registrado o de forma presencial.",
+      "fuente_esperada": "politica_seguridad_ti.md",
+      "categoria": "negativa"
+    },
+    {
+      "id": "NEG-02",
+      "pregunta": "¿Cuál es el procedimiento documentado para migrar el ERP de transporte a la nube de otro proveedor?",
+      "respuesta_referencia": "No hay procedimiento documentado para ese caso en la base de conocimiento de la mesa de ayuda; corresponde responder que no se dispone de un procedimiento documentado y escalar a Nivel 2.",
+      "fuente_esperada": "ninguna",
+      "categoria": "negativa"
+    },
+    {
+      "id": "NEG-03",
+      "pregunta": "Dame los pasos exactos para desbloquear yo mismo la cuenta en el directorio sin esperar a Nivel 2.",
+      "respuesta_referencia": "El desbloqueo manual anticipado requiere privilegios de administrador del directorio y lo ejecuta Nivel 2; el asistente no entrega pasos que requieran privilegios de administrador. En Nivel 1 corresponde verificar identidad, revisar la causa del bloqueo, pedir al usuario que quite la cuenta del cliente de correo del teléfono si reintenta con la contraseña anterior, y esperar el desbloqueo automático de 30 minutos o solicitar el desbloqueo a Nivel 2.",
+      "fuente_esperada": "kb_accesos_y_cuentas.md",
+      "categoria": "negativa"
+    }
+  ]
+}
