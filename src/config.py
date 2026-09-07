@@ -102,8 +102,8 @@ equivalentes en pertinencia; entre ellos manda la fecha_vigencia más nueva."""
 TEMPERATURA: float = 0.1
 """Temperatura del modelo de chat: baja, porque se busca respuesta procedimental."""
 
-MAX_TOKENS: int = 700
-"""Techo de tokens de salida por respuesta."""
+MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "2000"))
+"""Tokens máximos de salida del modelo (permite razonamiento en modelos que lo requieren)."""
 
 TEMPERATURA_JUEZ: float = 0.0
 """El LLM juez de la evaluación se ejecuta determinista."""

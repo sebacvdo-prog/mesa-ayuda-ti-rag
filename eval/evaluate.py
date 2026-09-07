@@ -213,7 +213,7 @@ def evaluar(
     perfil = perfil or dataset.get("perfil_por_defecto", "agente")
 
     asistente = crear_asistente()
-    juez = config.crear_llm(temperatura=config.TEMPERATURA_JUEZ, max_tokens=400)
+    juez = config.crear_llm(temperatura=config.TEMPERATURA_JUEZ, max_tokens=2000)
 
     inicio = datetime.now()
     detalle: list[dict[str, Any]] = []
