@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import time
 from datetime import datetime
@@ -36,6 +37,24 @@ from src.agent import RespuestaAsistente, crear_asistente
 METRICAS: tuple[str, ...] = ("fidelidad", "relevancia", "precision_contexto")
 
 _PATRON_JSON = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _leer_archivo(ruta: Path) -> str:
+    """Lee un archivo de texto manejando rutas largas en Windows."""
+    ruta_str = str(ruta.resolve())
+    if os.name == "nt" and len(ruta_str) >= 240 and not ruta_str.startswith("\\\\?\\"):
+        ruta_str = f"\\\\?\\{ruta_str}"
+    with open(ruta_str, encoding="utf-8") as archivo:
+        return archivo.read()
+
+
+def _escribir_archivo(ruta: Path, texto: str) -> None:
+    """Escribe un archivo de texto manejando rutas largas en Windows."""
+    ruta_str = str(ruta.resolve())
+    if os.name == "nt" and len(ruta_str) >= 240 and not ruta_str.startswith("\\\\?\\"):
+        ruta_str = f"\\\\?\\{ruta_str}"
+    with open(ruta_str, "w", encoding="utf-8") as archivo:
+        archivo.write(texto)
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +76,7 @@ def cargar_dataset(ruta: Path = config.RUTA_DATASET) -> dict[str, Any]:
     """
     if not ruta.exists():
         raise FileNotFoundError(f"No se encuentra el dataset de evaluación: {ruta}")
-    return json.loads(ruta.read_text(encoding="utf-8"))
+    return json.loads(_leer_archivo(ruta))
 
 
 # ---------------------------------------------------------------------------
@@ -345,8 +364,8 @@ def escribir_resultados(corrida: dict[str, Any], directorio: Path | None = None)
     marca = datetime.fromisoformat(corrida["fecha"]).strftime("%Y%m%d-%H%M%S")
 
     ruta_json = directorio / f"evaluacion-{marca}.json"
-    ruta_json.write_text(
-        json.dumps(corrida, ensure_ascii=False, indent=2), encoding="utf-8"
+    _escribir_archivo(
+        ruta_json, json.dumps(corrida, ensure_ascii=False, indent=2)
     )
 
     resumen = corrida["resumen"]
@@ -431,7 +450,7 @@ def escribir_resultados(corrida: dict[str, Any], directorio: Path | None = None)
     ]
 
     ruta_md = directorio / f"evaluacion-{marca}.md"
-    ruta_md.write_text("\n".join(lineas), encoding="utf-8")
+    _escribir_archivo(ruta_md, "\n".join(lineas))
     return ruta_json, ruta_md
 
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -94,6 +95,24 @@ def normalizar_texto(texto: str) -> str:
     return texto.strip()
 
 
+def _leer_archivo(ruta: Path) -> str:
+    """Lee un archivo de texto manejando rutas largas en Windows."""
+    ruta_str = str(ruta.resolve())
+    if os.name == "nt" and len(ruta_str) >= 240 and not ruta_str.startswith("\\\\?\\"):
+        ruta_str = f"\\\\?\\{ruta_str}"
+    with open(ruta_str, encoding="utf-8") as archivo:
+        return archivo.read()
+
+
+def _escribir_archivo(ruta: Path, texto: str) -> None:
+    """Escribe un archivo de texto manejando rutas largas en Windows."""
+    ruta_str = str(ruta.resolve())
+    if os.name == "nt" and len(ruta_str) >= 240 and not ruta_str.startswith("\\\\?\\"):
+        ruta_str = f"\\\\?\\{ruta_str}"
+    with open(ruta_str, "w", encoding="utf-8") as archivo:
+        archivo.write(texto)
+
+
 def cargar_documentos(directorio: Path, fuente: str) -> list[Document]:
     """Carga los ``.md`` de un directorio como documentos de LangChain.
 
@@ -112,7 +131,7 @@ def cargar_documentos(directorio: Path, fuente: str) -> list[Document]:
 
     documentos: list[Document] = []
     for ruta in sorted(directorio.glob("*.md")):
-        crudo = ruta.read_text(encoding="utf-8")
+        crudo = _leer_archivo(ruta)
         encabezado, cuerpo = separar_frontmatter(crudo)
         documentos.append(
             Document(
@@ -240,7 +259,7 @@ def leer_manifiesto() -> dict[str, Any]:
     if not config.RUTA_MANIFIESTO_INGESTA.exists():
         return {}
     try:
-        return json.loads(config.RUTA_MANIFIESTO_INGESTA.read_text(encoding="utf-8"))
+        return json.loads(_leer_archivo(config.RUTA_MANIFIESTO_INGESTA))
     except json.JSONDecodeError:
         return {}
 
@@ -252,8 +271,9 @@ def escribir_manifiesto(datos: dict[str, Any]) -> None:
         datos: Diccionario con la huella y las estadísticas de la corrida.
     """
     config.RUTA_MANIFIESTO_INGESTA.parent.mkdir(parents=True, exist_ok=True)
-    config.RUTA_MANIFIESTO_INGESTA.write_text(
-        json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8"
+    _escribir_archivo(
+        config.RUTA_MANIFIESTO_INGESTA,
+        json.dumps(datos, ensure_ascii=False, indent=2),
     )
 
 
