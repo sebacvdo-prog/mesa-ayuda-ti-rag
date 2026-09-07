@@ -1,0 +1,31 @@
+# Dependencias del asistente RAG de la mesa de ayuda TI (ISY0101).
+# Versiones fijadas por rango menor para que la instalación sea reproducible.
+
+# --- Núcleo LangChain ---
+langchain>=0.3.0,<0.4
+langchain-core>=0.3.0,<0.4
+langchain-community>=0.3.0,<0.4
+
+# --- Chat: Groq expuesto por API compatible con OpenAI ---
+# Se usa el conector de OpenAI porque Groq publica un endpoint compatible
+# (LLM_BASE_URL=https://api.groq.com/openai/v1). No se instala el SDK de Groq.
+langchain-openai>=0.2.0,<0.4
+
+# --- Embeddings: gemini-embedding-001 ---
+langchain-google-genai>=2.0.0,<3.0
+
+# --- Vector store ---
+faiss-cpu>=1.8.0,<2.0
+
+# --- Utilidades ---
+python-dotenv>=1.0.0,<2.0
+pydantic>=2.7.0,<3.0
+
+# --- Interfaz web ---
+streamlit>=1.36.0,<2.0
+
+# --- Pruebas ---
+pytest>=8.0.0,<9.0
+
+# --- Trazabilidad opcional (LangSmith). El sistema funciona sin ella. ---
+langsmith>=0.1.90

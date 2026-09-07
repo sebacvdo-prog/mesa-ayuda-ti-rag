@@ -1,0 +1,25 @@
+# --- Secretos ---
+.env
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Artefactos generados en tiempo de ejecución ---
+data/itsm.db
+storage/
+.cache/
+
+# --- Sistema operativo / editores ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
