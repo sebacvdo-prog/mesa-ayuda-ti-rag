@@ -164,7 +164,7 @@ def verificar_requisitos() -> bool:
         st.info("Copiá `.env.example` como `.env` y completá las claves.")
         return False
 
-    if not (config.DIR_INDICE_FAISS / "index.faiss").exists():
+    if not config.archivo_existe(config.DIR_INDICE_FAISS / "index.faiss"):
         st.error("No existe el índice FAISS.")
         st.code("python data/seed_db.py\npython -m src.ingest", language="bash")
         return False

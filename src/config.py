@@ -54,6 +54,19 @@ RUTA_CACHE_EMBEDDINGS: Path = DIR_CACHE / "embeddings.sqlite"
 
 DIR_RESULTADOS_EVAL: Path = RAIZ_PROYECTO / "eval" / "resultados"
 
+
+def ruta_segura(ruta: Path | str) -> str:
+    """Devuelve la ruta absoluta manejando rutas largas en Windows."""
+    p = str(Path(ruta).resolve())
+    if os.name == "nt" and len(p) >= 200 and not p.startswith("\\\\?\\"):
+        return f"\\\\?\\{p}"
+    return p
+
+
+def archivo_existe(ruta: Path | str) -> bool:
+    """Comprueba si un archivo existe manejando rutas largas en Windows."""
+    return os.path.exists(ruta_segura(ruta))
+
 # ---------------------------------------------------------------------------
 # Modelos y credenciales
 # ---------------------------------------------------------------------------
@@ -240,13 +253,20 @@ class EmbeddingsConCache(Embeddings):
         self.aciertos = 0
         self.fallos = 0
         self.ruta_cache.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.ruta_cache) as conexion:
+        with sqlite3.connect(self._ruta_str()) as conexion:
             conexion.execute(
                 "CREATE TABLE IF NOT EXISTS embeddings ("
                 "  clave TEXT PRIMARY KEY,"
                 "  vector TEXT NOT NULL"
                 ")"
             )
+
+    def _ruta_str(self) -> str:
+        """Devuelve la ruta absoluta manejando rutas largas en Windows."""
+        p = str(self.ruta_cache.resolve())
+        if os.name == "nt" and len(p) >= 200 and not p.startswith("\\\\?\\"):
+            return f"\\\\?\\{p}"
+        return p
 
     def _clave(self, texto: str, tipo: str) -> str:
         """Calcula la clave de caché de un texto.
@@ -274,7 +294,7 @@ class EmbeddingsConCache(Embeddings):
         if not claves:
             return {}
         marcadores = ",".join("?" for _ in claves)
-        with sqlite3.connect(self.ruta_cache) as conexion:
+        with sqlite3.connect(self._ruta_str()) as conexion:
             filas = conexion.execute(
                 f"SELECT clave, vector FROM embeddings WHERE clave IN ({marcadores})",
                 claves,
@@ -289,7 +309,7 @@ class EmbeddingsConCache(Embeddings):
         """
         if not pares:
             return
-        with sqlite3.connect(self.ruta_cache) as conexion:
+        with sqlite3.connect(self._ruta_str()) as conexion:
             conexion.executemany(
                 "INSERT OR REPLACE INTO embeddings (clave, vector) VALUES (?, ?)",
                 [(clave, json.dumps(vector)) for clave, vector in pares.items()],

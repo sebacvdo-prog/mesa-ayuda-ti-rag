@@ -113,6 +113,14 @@ def _escribir_archivo(ruta: Path, texto: str) -> None:
         archivo.write(texto)
 
 
+def _ruta_str(ruta: Path | str) -> str:
+    """Devuelve la ruta absoluta manejando rutas largas en Windows."""
+    p = str(Path(ruta).resolve())
+    if os.name == "nt" and len(p) >= 200 and not p.startswith("\\\\?\\"):
+        return f"\\\\?\\{p}"
+    return p
+
+
 def cargar_documentos(directorio: Path, fuente: str) -> list[Document]:
     """Carga los ``.md`` de un directorio como documentos de LangChain.
 
@@ -351,10 +359,11 @@ def ingestar(forzar: bool = False) -> dict[str, Any]:
 
     almacen = FAISS.from_documents(fragmentos, embeddings)
 
-    if config.DIR_INDICE_FAISS.exists():
-        shutil.rmtree(config.DIR_INDICE_FAISS)
-    config.DIR_INDICE_FAISS.parent.mkdir(parents=True, exist_ok=True)
-    almacen.save_local(str(config.DIR_INDICE_FAISS))
+    ruta_faiss = _ruta_str(config.DIR_INDICE_FAISS)
+    if os.path.exists(ruta_faiss):
+        shutil.rmtree(ruta_faiss)
+    Path(ruta_faiss).parent.mkdir(parents=True, exist_ok=True)
+    almacen.save_local(ruta_faiss)
 
     aciertos = getattr(embeddings, "aciertos", 0)
     fallos = getattr(embeddings, "fallos", 0)

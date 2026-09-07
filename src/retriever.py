@@ -16,6 +16,7 @@ El módulo resuelve cuatro cosas:
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 from datetime import date
@@ -262,6 +263,14 @@ def formatear_contexto(fragmentos: Sequence[FragmentoRecuperado]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _ruta_str(ruta: Path | str) -> str:
+    """Devuelve la ruta absoluta manejando rutas largas en Windows."""
+    p = str(Path(ruta).resolve())
+    if os.name == "nt" and len(p) >= 200 and not p.startswith("\\\\?\\"):
+        return f"\\\\?\\{p}"
+    return p
+
+
 class RecuperadorVectorial:
     """Envoltura del índice FAISS con umbral, filtros y re-ranking.
 
@@ -319,7 +328,8 @@ class RecuperadorVectorial:
         Raises:
             FileNotFoundError: Si falta el índice.
         """
-        if not (Path(ruta_indice) / "index.faiss").exists():
+        ruta_faiss = _ruta_str(ruta_indice)
+        if not (Path(ruta_faiss) / "index.faiss").exists():
             raise FileNotFoundError(
                 f"No existe el índice FAISS en {ruta_indice}. "
                 "Construilo primero con: python -m src.ingest"
@@ -328,7 +338,7 @@ class RecuperadorVectorial:
 
         embeddings = config.crear_embeddings()
         return FAISS.load_local(
-            str(ruta_indice),
+            ruta_faiss,
             embeddings,
             allow_dangerous_deserialization=True,  # índice generado localmente
         )

@@ -15,6 +15,11 @@ from __future__ import annotations
 import argparse
 import sys
 
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from src import config
 from src.agent import AsistenteMesaAyuda, RespuestaAsistente, crear_asistente
 
@@ -200,7 +205,7 @@ def main() -> None:
         print("\nCopiá .env.example como .env y completá las claves.")
         raise SystemExit(1)
 
-    if not (config.DIR_INDICE_FAISS / "index.faiss").exists():
+    if not config.archivo_existe(config.DIR_INDICE_FAISS / "index.faiss"):
         print(
             "No existe el índice FAISS. Construilo primero:\n"
             "  python data/seed_db.py\n"
