@@ -1,0 +1,75 @@
+{
+  "fecha": "2026-09-07T01:37:44",
+  "duracion_segundos": 4.3,
+  "dataset": {
+    "nombre": "Dataset de evaluación · Asistente RAG Mesa de Ayuda TI",
+    "version": "1.0.0"
+  },
+  "perfil": "agente",
+  "configuracion": {
+    "modelo_chat": "openai/gpt-oss-120b",
+    "modelo_embeddings": "models/gemini-embedding-001",
+    "dimension_embeddings": 768,
+    "chunk_size": 900,
+    "chunk_overlap": 150,
+    "top_k": 4,
+    "umbral_similitud": 0.72,
+    "temperatura": 0.1,
+    "temperatura_juez": 0.0,
+    "version_prompts": "1.0.0"
+  },
+  "resumen": {
+    "casos": 1,
+    "promedios": {
+      "fidelidad": 1.0,
+      "relevancia": 0.0,
+      "precision_contexto": 0.5
+    },
+    "por_categoria": {
+      "procedimiento_kb": {
+        "casos": 1,
+        "fidelidad": 1.0,
+        "relevancia": 0.0,
+        "precision_contexto": 0.5
+      }
+    },
+    "acierto_de_fuente": {
+      "evaluados": 1,
+      "aciertos": 1,
+      "tasa": 1.0
+    },
+    "escalamientos": 0,
+    "errores_del_juez": 0
+  },
+  "detalle": [
+    {
+      "id": "KB-01",
+      "categoria": "procedimiento_kb",
+      "pregunta": "Un usuario dice que su cuenta quedó bloqueada porque superó los intentos de inicio de sesión. ¿Qué pasos sigo en Nivel 1?",
+      "respuesta_referencia": "Primero verificar la identidad del usuario contrastando al menos dos datos contra el directorio. Luego revisar si el bloqueo fue por intentos fallidos o por detección de riesgo. Si fue por intentos fallidos, la política suspende la cuenta 30 minutos tras 10 intentos consecutivos; hay que verificar que el usuario no tenga el buzón configurado en el teléfono reintentando con la contraseña anterior, que es la causa más frecuente de bloqueos repetidos, y pedirle que quite esa cuenta del cliente de correo. Después se espera el desbloqueo automático de 30 minutos o se solicita el desbloqueo a Nivel 2, porque el desbloqueo manual anticipado requiere privilegios de administrador. Si el bloqueo fue por detección de riesgo, se escala a Nivel 2 con la marca riesgo_identidad sin desbloquear.",
+      "respuesta_sistema": "\n\nFuente: [KB-ACC-01 · Cuentas y accesos: alta, baja, bloqueo y restablecimiento · 2026-04-20; KB-M365-01 · Correo y ofimática: Outlook, Teams, OneDrive y licencias · 2026-05-05]",
+      "fuente_esperada": "kb_accesos_y_cuentas.md",
+      "fuentes_recuperadas": [
+        "kb_accesos_y_cuentas.md",
+        "kb_accesos_y_cuentas.md",
+        "kb_accesos_y_cuentas.md",
+        "kb_microsoft365.md"
+      ],
+      "puntajes_similitud": [
+        0.8316,
+        0.8171,
+        0.8057,
+        0.7308
+      ],
+      "clasificacion": "interna",
+      "motivo": "ok",
+      "escalamiento": false,
+      "acierto_fuente": true,
+      "error_juez": false,
+      "fidelidad": 1.0,
+      "relevancia": 0.0,
+      "precision_contexto": 0.5,
+      "justificacion": "Solo muestra la línea de fuente sin proporcionar los pasos de Nivel 1, aunque las fuentes citadas son correctas y parcialmente relevantes"
+    }
+  ]
+}

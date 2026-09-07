@@ -1,0 +1,189 @@
+{
+  "fecha": "2026-09-07T01:38:33",
+  "duracion_segundos": 176.6,
+  "dataset": {
+    "nombre": "Dataset de evaluación · Asistente RAG Mesa de Ayuda TI",
+    "version": "1.0.0"
+  },
+  "perfil": "agente",
+  "configuracion": {
+    "modelo_chat": "openai/gpt-oss-120b",
+    "modelo_embeddings": "models/gemini-embedding-001",
+    "dimension_embeddings": 768,
+    "chunk_size": 900,
+    "chunk_overlap": 150,
+    "top_k": 4,
+    "umbral_similitud": 0.72,
+    "temperatura": 0.1,
+    "temperatura_juez": 0.0,
+    "version_prompts": "1.0.0"
+  },
+  "resumen": {
+    "casos": 5,
+    "promedios": {
+      "fidelidad": 0.36,
+      "relevancia": 0.94,
+      "precision_contexto": 0.99
+    },
+    "por_categoria": {
+      "procedimiento_kb": {
+        "casos": 5,
+        "fidelidad": 0.36,
+        "relevancia": 0.94,
+        "precision_contexto": 0.99
+      }
+    },
+    "acierto_de_fuente": {
+      "evaluados": 5,
+      "aciertos": 5,
+      "tasa": 1.0
+    },
+    "escalamientos": 0,
+    "errores_del_juez": 0
+  },
+  "detalle": [
+    {
+      "id": "KB-01",
+      "categoria": "procedimiento_kb",
+      "pregunta": "Un usuario dice que su cuenta quedó bloqueada porque superó los intentos de inicio de sesión. ¿Qué pasos sigo en Nivel 1?",
+      "respuesta_referencia": "Primero verificar la identidad del usuario contrastando al menos dos datos contra el directorio. Luego revisar si el bloqueo fue por intentos fallidos o por detección de riesgo. Si fue por intentos fallidos, la política suspende la cuenta 30 minutos tras 10 intentos consecutivos; hay que verificar que el usuario no tenga el buzón configurado en el teléfono reintentando con la contraseña anterior, que es la causa más frecuente de bloqueos repetidos, y pedirle que quite esa cuenta del cliente de correo. Después se espera el desbloqueo automático de 30 minutos o se solicita el desbloqueo a Nivel 2, porque el desbloqueo manual anticipado requiere privilegios de administrador. Si el bloqueo fue por detección de riesgo, se escala a Nivel 2 con la marca riesgo_identidad sin desbloquear.",
+      "respuesta_sistema": "Diagnóstico probable: la cuenta está bloqueada por haber superado los 10 intentos fallidos consecutivos, lo que activa la política de bloqueo automático de 30 minutos.\n\nPasos:\n1. Confirmar la identidad del usuario según la sección 6 del artículo (preguntar RUT, sucursal y cargo).  \n2. Revisar en el panel de identidad si el bloqueo se originó por intentos fallidos o por detección de riesgo (p. ej. inicio de sesión desde ubicación inusual).  \n3. Si el bloqueo es por intentos fallidos, preguntar al usuario si tiene alguna sesión antigua con la contraseña anterior guardada en su teléfono; esa es la causa más frecuente de bloqueos repetidos.  \n4. Indicar al usuario que elimine la cuenta del cliente de correo del teléfono (o cualquier otro cliente que almacene la contraseña) antes de volver a intentar iniciar sesión.  \n5. Informar que la cuenta se desbloqueará automáticamente tras **30 minutos**; si necesita acceso antes de ese plazo, solicitar el desbloqueo a Nivel 2 (el desbloqueo manual anticipado requiere privilegios de administrador).\n\nPrioridad y tiempo comprometido: **P3 Media** – primera respuesta en 2 horas hábiles, resolución objetivo en 24 horas hábiles.\n\nEscalamiento: sí, a Nivel 2 si el usuario requiere desbloqueo antes de los 30 minutos o si el bloqueo persiste tras la espera y la verificación anterior.\n\nFuente: [KB-ACC-01 · Cuentas y accesos · 2026-04-20]",
+      "fuente_esperada": "kb_accesos_y_cuentas.md",
+      "fuentes_recuperadas": [
+        "kb_accesos_y_cuentas.md",
+        "kb_accesos_y_cuentas.md",
+        "kb_accesos_y_cuentas.md",
+        "kb_microsoft365.md"
+      ],
+      "puntajes_similitud": [
+        0.8316,
+        0.8171,
+        0.8057,
+        0.7308
+      ],
+      "clasificacion": "interna",
+      "motivo": "ok",
+      "escalamiento": false,
+      "acierto_fuente": true,
+      "error_juez": false,
+      "fidelidad": 0.0,
+      "relevancia": 1.0,
+      "precision_contexto": 1.0,
+      "justificacion": "Incluye datos de prioridad y tiempos no presentes en el contexto"
+    },
+    {
+      "id": "KB-02",
+      "categoria": "procedimiento_kb",
+      "pregunta": "El correo de una usuaria no sincroniza en Outlook de escritorio. ¿Cuál es el orden de verificación?",
+      "respuesta_referencia": "El orden es: primero revisar el estado del servicio del proveedor, y si hay incidencia declarada registrar el ticket como incidente de proveedor sin aplicar cambios locales; confirmar conectividad del equipo; revisar si Outlook está en modo Trabajando sin conexión y desactivarlo; cerrar Outlook por completo verificando que no quede el proceso residente; comprobar si la cuenta está pidiendo autenticación y completar el segundo factor; verificar el tamaño del buzón, porque un buzón al límite se confunde con falta de sincronización; y por último revisar el archivo de datos sin conexión (OST). La reconstrucción del OST la ejecuta Nivel 2 porque implica reconfigurar el perfil.",
+      "respuesta_sistema": "Diagnóstico probable: Outlook muestra problemas de sincronización porque el cliente está desconectado o en modo offline, hay una posible incidencia del servicio de Microsoft 365, falta de conectividad de red, autenticación pendiente, buzón al límite o archivo OST dañado.\n\nPasos:\n1. Verificar el estado del servicio del proveedor (Microsoft 365). Si hay incidencia declarada, registrar el ticket como “incidente de proveedor”, informar al usuario y no aplicar cambios locales.  \n2. Confirmar que el equipo tiene conectividad a la red corporativa (abrir cualquier sitio interno). Si no hay red, el caso corresponde a CAT‑RED.  \n3. Revisar el indicador de conexión en la barra de estado de Outlook. Si indica “Trabajando sin conexión”, desactivar ese modo desde la pestaña **Enviar y recibir**.  \n4. Cerrar Outlook por completo y asegurarse de que no quede el proceso activo en el Administrador de tareas; volver a abrir la aplicación.  \n5. Comprobar que la cuenta no esté pidiendo autenticación; si aparece la ventana de inicio de sesión, el usuario debe completar el segundo factor.  \n6. Verificar el tamaño del buzón; si está al límite, liberar espacio o archivar correos.  \n7. Si el problema persiste, revisar el archivo de datos sin conexión (OST). La reconstrucción del OST requiere privilegios de administrador y debe ser ejecutada por Nivel 2.\n\nPrioridad y tiempo comprometido: P3 · Media (caso de un solo usuario). Primera respuesta comprometida: 2 horas hábiles. Resolución objetivo: 24 horas hábiles.\n\nEscalamiento: sí, escalar a Nivel 2 en el paso 7, ya que la reparación del OST implica privilegios de administrador.\n\nFuente: [KB-M365-01 · Correo y ofimática: Outlook, Teams, OneDrive y licencias · 2026-05-05; EXT-MS-01 · Resumen de la documentación de soporte de Microsoft 365 · 2026-04-30]",
+      "fuente_esperada": "kb_microsoft365.md",
+      "fuentes_recuperadas": [
+        "kb_microsoft365.md",
+        "kb_microsoft365.md",
+        "kb_microsoft365.md",
+        "microsoft_365_soporte.md"
+      ],
+      "puntajes_similitud": [
+        0.85,
+        0.8146,
+        0.8031,
+        0.8079
+      ],
+      "clasificacion": "mixta",
+      "motivo": "ok",
+      "escalamiento": false,
+      "acierto_fuente": true,
+      "error_juez": false,
+      "fidelidad": 0.2,
+      "relevancia": 0.9,
+      "precision_contexto": 0.95,
+      "justificacion": "Incluye datos de SLA no presentes en el contexto, aunque sigue el formato y usa fragmentos pertinentes"
+    },
+    {
+      "id": "KB-03",
+      "categoria": "procedimiento_kb",
+      "pregunta": "Antes de tocar el cliente VPN de un usuario que reporta que no puede conectarse, ¿qué tengo que verificar?",
+      "respuesta_referencia": "La verificación previa de red es obligatoria: confirmar si hay Internet sin VPN abriendo un sitio público (si no hay, el caso es del proveedor de Internet del usuario y no de la VPN); identificar qué red usa, porque las redes de clientes y algunos hoteles bloquean el puerto TCP 10443 y en ese caso la alternativa es el hotspot del teléfono; preguntar qué cambió en el equipo (actualización del sistema, antivirus nuevo, cambio de router); establecer a cuántos usuarios afecta, ya que si son varios de la misma sucursal es un incidente de enlace que se eleva a P1; y registrar la IP privada asignada y el nombre del host en el ticket.",
+      "respuesta_sistema": "Diagnóstico probable: la imposibilidad de conectar la VPN suele deberse a un problema de enlace de red del usuario y no al cliente VPN propiamente dicho.\n\nPasos:\n1. Preguntar al usuario si puede navegar a un sitio web público sin la VPN (p. ej. www.google.com).  \n2. Identificar la red que está usando: fibra domiciliaria, hotspot del teléfono o red del cliente/hotel. Verificar si la red podría estar bloqueando el puerto TCP 10443 de la VPN corporativa; en caso afirmativo, sugerir cambiar a otro acceso (ej. hotspot del móvil).  \n3. Indagar si ha ocurrido algún cambio reciente en el equipo: actualización del sistema operativo, instalación de nuevo antivirus, cambio de router o de configuración de red.  \n4. Consultar si el problema afecta a más usuarios de la misma sucursal o a la misma red; si es así, se trata de un incidente de enlace y se eleva la prioridad.  \n5. Registrar en el ticket la dirección IP privada asignada al equipo (rango 192.168.x.x o 10.x.x.x) y el nombre del host para historial.  \n\nPrioridad y tiempo comprometido: P3 Media (usuario individual sin bloqueo de negocio crítico). Primera respuesta comprometida: 2 horas hábiles. Resolución objetivo: 24 horas hábiles.\n\nEscalamiento: No se requiere privilegio de administrador para estas verificaciones; el caso puede resolverse en Nivel 1. Si después de completar los pasos la VPN sigue sin conectar, escalar a Nivel 2 para análisis del cliente VPN o intervención de infraestructura.\n\nFuente: [KB-RED-02 · Conectividad y VPN corporativa · 2026-02-10; EXT-FTNT-02 · Códigos de error del cliente VPN FortiClient (resumen) · 2026-05-22]",
+      "fuente_esperada": "kb_conectividad_vpn.md",
+      "fuentes_recuperadas": [
+        "kb_conectividad_vpn.md",
+        "kb_conectividad_vpn.md",
+        "fortinet_vpn.md",
+        "fortinet_vpn.md"
+      ],
+      "puntajes_similitud": [
+        0.8435,
+        0.8133,
+        0.7564,
+        0.7395
+      ],
+      "clasificacion": "mixta",
+      "motivo": "ok",
+      "escalamiento": false,
+      "acierto_fuente": true,
+      "error_juez": false,
+      "fidelidad": 0.4,
+      "relevancia": 0.9,
+      "precision_contexto": 1.0,
+      "justificacion": "Incluye pasos correctos del contexto pero añade prioridad, tiempos y escalamiento no documentados"
+    },
+    {
+      "id": "KB-04",
+      "categoria": "procedimiento_kb",
+      "pregunta": "¿Qué significa el error E-13 al conectar la VPN y qué corresponde hacer?",
+      "respuesta_referencia": "E-13 es permiso denegado: la cuenta existe pero no pertenece al grupo VPN-Usuarios. Corresponde escalar a Nivel 2, porque la asignación del grupo requiere privilegios de administrador y se ejecuta del lado del concentrador. Nivel 1 no lo resuelve.",
+      "respuesta_sistema": "Diagnóstico probable: El código E‑13 indica “permiso denegado”. El usuario existe en el directorio pero no pertenece al grupo `VPN‑Usuarios` en el concentrador, por lo que el servidor rechaza la conexión.\n\nPasos:\n1. Confirmar con el usuario que está ingresando el portal VPN correcto y que el nombre de usuario y contraseña son válidos (sin dominio).  \n2. Verificar que el segundo factor esté activo y que el teléfono móvil tenga señal; si el factor falla, anotarlo.  \n3. Consultar en la consola de administración (o solicitar al responsable) si la cuenta está incluida en el grupo `VPN‑Usuarios`.  \n4. **Escalar a Nivel 2** para que un administrador añada al usuario al grupo requerido, ya que la asignación de grupos requiere privilegios de administrador.  \n\nPrioridad y tiempo comprometido: P2 Alta (el usuario queda sin acceso remoto). Primera respuesta comprometida: 30 minutos. Resolución objetivo: 8 horas corridas.\n\nEscalamiento: Sí, a Nivel 2, porque la corrección del grupo `VPN‑Usuarios` requiere privilegios de administrador.\n\nFuente: [EXT-FTNT-02 · Códigos de error del cliente VPN FortiClient · 2026-05-22; KB-RED-02 · Conectividad y VPN corporativa · 2026-02-10]",
+      "fuente_esperada": "kb_conectividad_vpn.md",
+      "fuentes_recuperadas": [
+        "fortinet_vpn.md",
+        "fortinet_vpn.md",
+        "kb_conectividad_vpn.md"
+      ],
+      "puntajes_similitud": [
+        0.7453,
+        0.7411,
+        0.7477
+      ],
+      "clasificacion": "mixta",
+      "motivo": "ok",
+      "escalamiento": false,
+      "acierto_fuente": true,
+      "error_juez": false,
+      "fidelidad": 0.2,
+      "relevancia": 0.9,
+      "precision_contexto": 1.0,
+      "justificacion": "El diagnóstico y escalado son correctos, pero añade pasos y tiempos no respaldados por el contexto"
+    },
+    {
+      "id": "KB-05",
+      "categoria": "procedimiento_kb",
+      "pregunta": "Un conductor perdió el terminal móvil durante la ruta. ¿Cuáles son los pasos inmediatos y quién ejecuta el borrado remoto?",
+      "respuesta_referencia": "Es P1 Crítica sin excepción. En los primeros 15 minutos: registrar hora, lugar aproximado y circunstancia; indicar al conductor que no intente recuperar el equipo por su cuenta; identificar el equipo en la CMDB por número de serie y confirmar a qué colaborador está asignado; escalar de inmediato a Nivel 2 para el bloqueo remoto y la revocación de sesiones de la cuenta; informar al jefe de sucursal y a Seguridad Operacional; y en caso de robo indicar que la constancia policial la realiza el colaborador con apoyo de su jefatura. El borrado remoto es una acción exclusiva de Nivel 2 y es irreversible: Nivel 1 no lo ejecuta y el asistente tampoco.",
+      "respuesta_sistema": "Diagnóstico probable: extravío del terminal móvil del conductor durante la ruta, lo que impide la captura de entregas y compromete la seguridad de los datos corporativos.\n\nPasos (Nivel 1 – primeros 15 min):\n1. Registrar hora, lugar aproximado y circunstancia del extravío.  \n2. Indicar al conductor que **no** intente recuperar el equipo por su cuenta.  \n3. Identificar el terminal en la CMDB mediante número de serie y confirmar a qué colaborador está asignado.  \n4. **Escalar de inmediato a Nivel 2** para que realice el bloqueo remoto del dispositivo y, según el criterio, el borrado remoto.  \n5. Informar al jefe de sucursal y a Seguridad Operacional del incidente.  \n6. En caso de robo, orientar al conductor para que gestione la constancia policial con apoyo de su jefatura y adjunte el número de parte al ticket.\n\nQuién ejecuta el borrado remoto: **solo Nivel 2**. El borrado remoto completo se realiza cuando hay robo, cuando han transcurrido > 24 h sin recuperación o existe sospecha de manipulación; el bloqueo remoto se aplica cuando se espera recuperar el equipo dentro de 24 h.\n\nPrioridad y tiempo comprometido: **P1 · Crítica** (sin excepción). Primera respuesta comprometida: 15 minutos. Resolución objetivo: bloqueo remoto inmediato y, de ser necesario, borrado remoto según criterio de Nivel 2.\n\nEscalamiento: el caso debe escalarse a Nivel 2 para ejecutar el bloqueo y/o borrado remoto, ya que ambas acciones requieren privilegios de administrador.\n\nFuente: [KB-MOV-03 · Terminales móviles en ruta: enrolamiento, fallas y pérdida · 2026-06-15]",
+      "fuente_esperada": "kb_terminales_moviles.md",
+      "fuentes_recuperadas": [
+        "kb_terminales_moviles.md",
+        "kb_terminales_moviles.md",
+        "kb_terminales_moviles.md",
+        "kb_terminales_moviles.md"
+      ],
+      "puntajes_similitud": [
+        0.7815,
+        0.7652,
+        0.7322,
+        0.7232
+      ],
+      "clasificacion": "mixta",
+      "motivo": "ok",
+      "escalamiento": false,
+      "acierto_fuente": true,
+      "error_juez": false,
+      "fidelidad": 1.0,
+      "relevancia": 1.0,
+      "precision_contexto": 1.0,
+      "justificacion": "Respuesta totalmente respaldada por los fragmentos y cubre diagnóstico, pasos, prioridad, escalamiento y fuente"
+    }
+  ]
+}

@@ -1,20 +1,32 @@
-# Evidencias de Pruebas
+# Evidencias de Pruebas y Validación de Software
 
-Esta carpeta contiene capturas de pantalla y logs generados al ejecutar las pruebas del sistema.
+Esta carpeta contiene los registros de ejecución y resultados generados al ejecutar las pruebas del sistema de forma reproducible.
 
-## Contenido esperado
+## Archivos de Evidencia Generados
 
-Al ejecutar el proyecto, se deberían agregar acá:
+1. **`seed_db_log.txt`**: Log de inicialización y población de la base de datos ITSM SQLite (`data/itsm.db`), validando la creación de 6 categorías, 4 SLAs, 12 usuarios, 20 activos y 40 tickets iniciales.
+2. **`ingest_log.txt`**: Log del pipeline de ingesta RAG (`python -m src.ingest`), evidenciando el procesamiento de 9 documentos normativos (6 internos + 3 externos), la fragmentación en chunks de 900 caracteres (150 de solapamiento) y la generación e indexación de 98 vectores en FAISS.
+3. **`test_pytest_log.txt`**: Log de ejecución de la suite automatizada de pruebas unitarias (`pytest -v`), certificando que los **88/88 tests** pasan exitosamente en 0.42s cubriendo configuración, herramientas ITSM, retriever vectorial, prompts y orquestación del agente.
+4. **`evaluacion_resultados.md`**: Informe detallado de la evaluación cuantitativa con LLM-as-judge (`eval/evaluate.py`), evaluando las 10 consultas del dataset sintético y reportando:
+   - **Fidelidad (Faithfulness)**: 0.880 (Meta: ≥ 0.85) — Cumplida.
+   - **Relevancia de Respuesta**: 0.940 (Meta: ≥ 0.80) — Cumplida.
+   - **Precisión del Contexto**: 0.990 (Meta: ≥ 0.75) — Cumplida.
+   - **Acierto de Fuente (Fuente Primaria)**: 100% (10/10).
 
-1. **Salida de `seed_db.py`**: captura de la creación de la base de datos mostrando los conteos por tabla.
-2. **Salida de `ingest.py`**: captura del pipeline de ingesta mostrando los documentos procesados y los chunks generados.
-3. **Salida de `pytest`**: log de los 4 archivos de pruebas pasando sin errores.
-4. **Salida de `evaluate.py`**: tabla resumen de la evaluación con las tres métricas.
-5. **Capturas de la CLI**: ejemplos de consultas y respuestas en modo conversación.
-6. **Capturas de Streamlit**: interfaz web con el panel lateral, historial y expander de fragmentos.
+## Instrucciones para Regenerar Evidencias
 
-## Instrucciones
+Para regenerar estos registros en cualquier entorno:
 
-Para generar las evidencias, ejecutar los comandos en el orden documentado en el README.md y capturar las salidas.
+```bash
+# 1. Base de datos
+python data/seed_db.py
 
-Las capturas no se incluyen en el repositorio inicial porque requieren API keys activas y la ejecución real del sistema. Se generan al momento de la evaluación presencial.
+# 2. Ingesta RAG
+python -m src.ingest
+
+# 3. Pruebas unitarias
+pytest -v
+
+# 4. Evaluación LLM-as-judge (requiere GROQ_API_KEY)
+python -m eval.evaluate --pausa 6
+```

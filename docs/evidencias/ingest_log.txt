@@ -1,0 +1,29 @@
+======================================================================
+INGESTA DEL CORPUS · Mesa de Ayuda TI
+======================================================================
+Documentos internos: 6
+Documentos externos: 3
+
+Fragmentación: chunk_size=900, chunk_overlap=150
+----------------------------------------------------------------------
+documento                         fuente    vigencia      chunks
+----------------------------------------------------------------------
+catalogo_servicios_sla.md         interna   2026-01-05         7
+kb_accesos_y_cuentas.md           interna   2026-04-20        16
+kb_conectividad_vpn.md            interna   2026-02-10        11
+kb_microsoft365.md                interna   2026-05-05        13
+kb_terminales_moviles.md          interna   2026-06-15        11
+politica_seguridad_ti.md          interna   2026-03-01        15
+csirt_avisos_seguridad.md         externa   2026-07-28         8
+fortinet_vpn.md                   externa   2026-05-22         8
+microsoft_365_soporte.md          externa   2026-04-30         9
+----------------------------------------------------------------------
+TOTAL                                                         98
+
+Longitud de fragmento: mínima 3, media 531, máxima 895 caracteres.
+
+Calculando embeddings con models/gemini-embedding-001 (768 dimensiones)...
+Caché de embeddings: 98 reutilizados, 0 calculados.
+
+Índice FAISS guardado en: C:\Users\Administrator\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\scratch-workspaces\4c40fff9-6db3-4a06-9e6b-9740d37d75d3\e6ee93d3-bbdc-43e8-a4d2-4de93c8bef21\scratch-2026-09-07-863cf5\mesa-ayuda-ti-rag\storage\faiss_index
+Listo. Siguiente paso: python -m src.cli
