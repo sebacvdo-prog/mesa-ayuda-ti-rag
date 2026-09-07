@@ -507,7 +507,7 @@ def main() -> None:
             print(f"  - {problema}")
         raise SystemExit(1)
 
-    if not (config.DIR_INDICE_FAISS / "index.faiss").exists():
+    if not config.archivo_existe(config.DIR_INDICE_FAISS / "index.faiss"):
         print("No existe el índice FAISS. Ejecutá primero: python -m src.ingest")
         raise SystemExit(1)
 
