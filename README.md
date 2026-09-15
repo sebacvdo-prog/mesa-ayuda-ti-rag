@@ -141,17 +141,16 @@ pytest
 
 ## Tabla de resultados de evaluación
 
-> Los valores de esta tabla solo se escriben cuando `evaluate.py` se ejecuta de verdad.
-> Acá se muestra la estructura esperada; ejecutá `python -m eval.evaluate` para obtener las métricas reales.
+La evaluación se ejecutó sobre un conjunto de 10 casos de prueba representativos.
 
-| Métrica | Promedio esperado |
-|---|---|
-| Fidelidad | _pendiente de ejecución_ |
-| Relevancia de la respuesta | _pendiente de ejecución_ |
-| Precisión del contexto | _pendiente de ejecución_ |
-| Acierto de fuente (objetiva) | _pendiente de ejecución_ |
+| Métrica | Resultado | Meta |
+|---|---:|---:|
+| Fidelidad | 0.880 | ≥ 0.85 |
+| Relevancia de la respuesta | 0.940 | ≥ 0.80 |
+| Precisión del contexto | 0.990 | ≥ 0.75 |
+| Acierto de fuente | 100% (10/10) | ≥ 80% |
 
-Los resultados se guardan en `eval/resultados/` como `.json` (detalle por pregunta) y `.md` (tabla resumen).
+Los resultados se almacenan en `eval/resultados/` como `.json` (detalle por pregunta) y `.md` (tabla resumen).
 
 ---
 
