@@ -47,7 +47,7 @@ def imprimir_encabezado(perfil: str) -> None:
     print("=" * ANCHO)
     print(f"Perfil activo: {perfil}")
     print(f"Modelo de chat: {config.MODELO_CHAT} (temperatura {config.TEMPERATURA})")
-    print(f"Recuperación: top_k={config.TOP_K}, umbral={config.UMBRAL_SIMILITUD}")
+    print(f"Recuperación: top_k={config.TOP_K}, umbral={config.umbral_similitud()}")
     print("El asistente no ejecuta acciones ni entrega credenciales.")
     print(AYUDA_COMANDOS)
 

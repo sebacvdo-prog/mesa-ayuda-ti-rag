@@ -140,7 +140,7 @@ def test_umbral_puede_dejar_el_contexto_vacio() -> None:
     """Si nada alcanza el umbral, el contexto queda vacío en vez de traer ruido."""
     fragmentos = [construir_fragmento(puntaje=0.4), construir_fragmento(puntaje=0.5)]
 
-    assert retriever.aplicar_umbral(fragmentos) == []
+    assert retriever.aplicar_umbral(fragmentos, umbral=0.72) == []
     assert retriever.formatear_contexto([]) == "[SIN CONTEXTO RECUPERADO]"
 
 

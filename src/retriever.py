@@ -4,7 +4,7 @@ El módulo resuelve cuatro cosas:
 
 1. **Enrutador de consulta.** Clasifica la pregunta en ``interna``, ``externa`` o
    ``mixta`` y filtra el índice por el metadato ``fuente``.
-2. **Búsqueda vectorial con umbral.** ``top_k=4`` y umbral de relevancia 0,72:
+2. **Búsqueda vectorial con umbral.** ``top_k=4`` y umbral según el proveedor:
    lo que no llega al umbral se descarta en vez de rellenar el contexto con ruido.
 3. **Re-ranking por vigencia.** Entre fragmentos de pertinencia equivalente manda
    el documento con ``fecha_vigencia`` más reciente. Es lo que hace que un aviso
@@ -39,7 +39,7 @@ class FragmentoRecuperado(BaseModel):
 
     Attributes:
         documento: Fragmento de LangChain con su texto y metadatos.
-        puntaje: Relevancia normalizada entre 0 y 1 que entrega FAISS.
+        puntaje: Score de relevancia de LangChain; mayor es mejor. No es probabilidad.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -179,18 +179,19 @@ def filtrar_por_metadatos(
 
 def aplicar_umbral(
     fragmentos: Iterable[FragmentoRecuperado],
-    umbral: float = config.UMBRAL_SIMILITUD,
+    umbral: float | None = None,
 ) -> list[FragmentoRecuperado]:
     """Descarta los fragmentos que no alcanzan el umbral de relevancia.
 
     Args:
         fragmentos: Fragmentos recuperados.
-        umbral: Puntaje mínimo aceptable.
+        umbral: Puntaje mínimo aceptable; por defecto, el del proveedor activo.
 
     Returns:
         Solo los fragmentos con ``puntaje >= umbral``.
     """
-    return [fragmento for fragmento in fragmentos if fragmento.puntaje >= umbral]
+    minimo = config.umbral_similitud() if umbral is None else umbral
+    return [fragmento for fragmento in fragmentos if fragmento.puntaje >= minimo]
 
 
 def reordenar_por_vigencia(
@@ -285,7 +286,7 @@ class RecuperadorVectorial:
         almacen: Any | None = None,
         ruta_indice: Path = config.DIR_INDICE_FAISS,
         top_k: int = config.TOP_K,
-        umbral: float = config.UMBRAL_SIMILITUD,
+        umbral: float | None = None,
     ) -> None:
         """Inicializa el recuperador.
 
@@ -299,7 +300,7 @@ class RecuperadorVectorial:
         self._almacen = almacen
         self.ruta_indice = Path(ruta_indice)
         self.top_k = top_k
-        self.umbral = umbral
+        self.umbral = config.umbral_similitud() if umbral is None else umbral
 
     @property
     def almacen(self) -> Any:
@@ -334,14 +335,26 @@ class RecuperadorVectorial:
                 f"No existe el índice FAISS en {ruta_indice}. "
                 "Construilo primero con: python -m src.ingest"
             )
+        if not config.indice_embeddings_compatible(Path(ruta_indice)):
+            raise RuntimeError(
+                "El índice FAISS está incompleto, no tiene metadatos de embeddings "
+                "o fue creado con otro proveedor, modelo o dimensión. "
+                "Reconstruilo con: python -m src.ingest"
+            )
         from langchain_community.vectorstores import FAISS  # import diferido
 
         embeddings = config.crear_embeddings()
-        return FAISS.load_local(
+        almacen = FAISS.load_local(
             ruta_faiss,
             embeddings,
             allow_dangerous_deserialization=True,  # índice generado localmente
         )
+        if almacen.index.d != config.DIMENSION_EMBEDDINGS:
+            raise RuntimeError(
+                "La dimensión real del índice FAISS no coincide con EMBEDDING_DIM. "
+                "Reconstruilo con: python -m src.ingest"
+            )
+        return almacen
 
     def _buscar_crudo(
         self, consulta: str, k: int, filtro: dict[str, str] | None

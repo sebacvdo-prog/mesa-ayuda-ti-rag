@@ -87,7 +87,7 @@ def dibujar_barra_lateral() -> None:
             - Temperatura: `{config.TEMPERATURA}` · máx. tokens: `{config.MAX_TOKENS}`
             - Embeddings: `{config.MODELO_EMBEDDINGS}` ({config.DIMENSION_EMBEDDINGS} dim)
             - Fragmentación: `{config.TAMANO_CHUNK}` / `{config.SOLAPE_CHUNK}`
-            - Recuperación: `top_k={config.TOP_K}` · umbral `{config.UMBRAL_SIMILITUD}`
+            - Recuperación: `top_k={config.TOP_K}` · umbral `{config.umbral_similitud()}`
             - Memoria: últimos `{config.VENTANA_TURNOS}` intercambios + resumen
             """
         )

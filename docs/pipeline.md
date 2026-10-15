@@ -33,13 +33,17 @@ Cortar por encabezado primero garantiza que un fragmento rara vez parta un proce
 
 ### Modelo: `gemini-embedding-001`
 
-- 768 dimensiones (se solicita `output_dimensionality=768` al constructor; el modelo soporta hasta 3072 pero 768 es suficiente y reduce el índice FAISS).
+- 768 dimensiones (se solicita `output_dimensionality=768` también en cada llamada de embeddings, porque el conector 2.x no conserva ese parámetro del constructor).
 - Cuota gratuita: 1.000 peticiones/día.
-- Caché en disco: los vectores se guardan en un SQLite local (`.cache/embeddings.sqlite`) indexados por SHA-256 de `modelo|tipo|texto`. Cambiar de modelo o de texto invalida la entrada automáticamente.
+- Caché en disco: los vectores se guardan en un SQLite local (`.cache/embeddings.sqlite`) indexados por SHA-256 de `configuración|tipo|texto`. La configuración incluye proveedor, modelo, dimensión y normalización.
 
-### Por qué no embeddings locales
+### Alternativa local para EP2
 
-El curso exige `langchain-google-genai`. Un embedding local (e.g. `all-MiniLM-L6-v2`) ahorraría cuota pero violaría el stack obligatorio.
+La alternativa de Google y `langchain-google-genai` se conservan. Para evitar la
+dependencia de permisos y cuota de Google durante EP2, `EMBEDDING_PROVIDER=huggingface`
+ejecuta `sentence-transformers/all-MiniLM-L6-v2` en CPU, con 384 dimensiones y
+vectores normalizados. Cada índice identifica su configuración y la reconstrucción
+conserva el índice anterior como respaldo.
 
 ## Recuperación
 
@@ -47,13 +51,33 @@ El curso exige `langchain-google-genai`. Un embedding local (e.g. `all-MiniLM-L6
 
 Cuatro fragmentos cubren hasta 2 procedimientos distintos (un procedimiento ocupa 1-2 fragmentos). Con 6 fragmentos ya se observa que el modelo copia texto de un procedimiento ajeno; con 2, pierde el contexto de escalamiento.
 
-### Umbral de similitud: 0,72
+### Umbral original de Google: 0,72
 
 Se estableció empíricamente con el dataset de evaluación:
 
 - Con 0,60 entraban fragmentos del catálogo de servicios en preguntas de VPN (ruido).
 - Con 0,80 se descartaban fragmentos pertinentes en preguntas formuladas con lenguaje coloquial ("la VPN no me anda" vs. el vocabulario técnico de la KB).
 - 0,72 descarta el ruido sin penalizar la variabilidad léxica esperable de un agente de Nivel 1.
+
+### Umbral configurable de Hugging Face
+
+`HF_SIMILARITY_THRESHOLD=0.471764` afecta exclusivamente a Hugging Face. Se obtuvo
+evaluando los intervalos definidos por las puntuaciones reales, con el enrutador,
+los permisos, el reordenamiento y `top_k=4` del proyecto. FAISS devuelve distancia
+L2 al cuadrado; el conector instalado aplica `1 - distancia² / sqrt(2)`.
+Se conserva esa escala y el comportamiento de Google.
+
+El criterio exige rechazar el caso sin fuente (`NEG-02`), maximiza el acierto de
+fuente y desempata por precisión documental proxy. El umbral es el punto medio
+del intervalo estable elegido. En el dataset actual mejora de 1/19 a 11/19
+aciertos de fuente, con 0/1 contextos para casos sin fuente. La validación que
+excluye cada pregunta con fuente de su propia calibración obtiene 10/19.
+
+Esto todavía no demuestra recuperación confiable en todos los casos: siete
+fuentes esperadas puntúan por debajo del caso sin fuente y `EXT-04` queda
+bloqueado por el filtro del enrutador. Un umbral único no puede corregir esos
+límites. Ver [método, comparaciones y resultados por pregunta](evidencias/calibracion_embeddings_locales.md).
+Reproducir con `python -m eval.calibrate_retrieval --offline`; no usa Groq ni juez.
 
 ### Búsqueda ampliada
 

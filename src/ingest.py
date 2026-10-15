@@ -24,9 +24,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 from pathlib import Path
 from typing import Any, Iterable
+from uuid import uuid4
 
 from langchain_core.documents import Document
 
@@ -249,8 +249,8 @@ def calcular_huella(documentos: Iterable[Document]) -> str:
     """
     hasher = hashlib.sha256()
     hasher.update(
-        f"{config.TAMANO_CHUNK}|{config.SOLAPE_CHUNK}|{config.MODELO_EMBEDDINGS}|"
-        f"{config.DIMENSION_EMBEDDINGS}".encode("utf-8")
+        f"{config.TAMANO_CHUNK}|{config.SOLAPE_CHUNK}|"
+        f"{json.dumps(config.configuracion_embeddings(), sort_keys=True)}".encode("utf-8")
     )
     for documento in sorted(documentos, key=lambda d: d.metadata["documento"]):
         hasher.update(documento.metadata["documento"].encode("utf-8"))
@@ -290,6 +290,35 @@ def escribir_manifiesto(datos: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
+def guardar_indice(almacen: Any, ruta_indice: Path) -> None:
+    """Guarda primero el índice nuevo y conserva el anterior como respaldo.
+
+    Si falla la escritura, el índice anterior permanece intacto. Si falla la
+    sustitución, se restaura su ubicación; los archivos nuevos se conservan para
+    diagnóstico. No se elimina ningún índice ni la caché existente.
+    """
+    destino = Path(_ruta_str(ruta_indice))
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    identificador = uuid4().hex
+    nuevo = destino.with_name(f"{destino.name}-nuevo-{identificador}")
+    respaldo = destino.with_name(f"{destino.name}-respaldo-{identificador}")
+    almacen.save_local(str(nuevo))
+    _escribir_archivo(
+        nuevo / "configuracion_embeddings.json",
+        json.dumps(config.configuracion_embeddings(), ensure_ascii=False, indent=2),
+    )
+    if destino.exists():
+        destino.rename(respaldo)
+    try:
+        nuevo.rename(destino)
+    except OSError:
+        if respaldo.exists():
+            respaldo.rename(destino)
+        raise
+    if respaldo.exists():
+        print(f"Índice anterior conservado en: {respaldo}")
+
+
 def ingestar(forzar: bool = False) -> dict[str, Any]:
     """Ejecuta la ingesta completa y persiste el índice FAISS en disco.
 
@@ -301,9 +330,12 @@ def ingestar(forzar: bool = False) -> dict[str, Any]:
         Resumen de la corrida: huella, totales y fragmentos por documento.
 
     Raises:
-        RuntimeError: Si falta ``GOOGLE_API_KEY``.
+        RuntimeError: Si la configuración de embeddings es inválida.
         config.ErrorDeCuota: Si el proveedor de embeddings agota la cuota.
     """
+    problemas = config.validar_configuracion(requiere_llm=False)
+    if problemas:
+        raise RuntimeError(" ".join(problemas))
     documentos = cargar_corpus()
     if not documentos:
         raise RuntimeError(
@@ -313,7 +345,7 @@ def ingestar(forzar: bool = False) -> dict[str, Any]:
 
     huella = calcular_huella(documentos)
     manifiesto = leer_manifiesto()
-    indice_existe = (config.DIR_INDICE_FAISS / "index.faiss").exists()
+    indice_compatible = config.indice_embeddings_compatible(config.DIR_INDICE_FAISS)
 
     print("=" * 70)
     print("INGESTA DEL CORPUS · Mesa de Ayuda TI")
@@ -321,9 +353,9 @@ def ingestar(forzar: bool = False) -> dict[str, Any]:
     print(f"Documentos internos: {sum(1 for d in documentos if d.metadata['fuente'] == 'interna')}")
     print(f"Documentos externos: {sum(1 for d in documentos if d.metadata['fuente'] == 'externa')}")
 
-    if indice_existe and manifiesto.get("huella") == huella and not forzar:
+    if indice_compatible and manifiesto.get("huella") == huella and not forzar:
         print("\nEl corpus no cambió desde la última ingesta: el índice sigue vigente.")
-        print("No se recalcularon embeddings (se cuida la cuota diaria de Gemini).")
+        print("No se recalcularon embeddings (se reutiliza el índice compatible).")
         print("Usá --forzar si querés reconstruirlo de todos modos.")
         print(f"\nÍndice vigente en: {config.DIR_INDICE_FAISS}")
         return manifiesto
@@ -352,18 +384,16 @@ def ingestar(forzar: bool = False) -> dict[str, Any]:
     )
 
     print("\nCalculando embeddings con "
-          f"{config.MODELO_EMBEDDINGS} ({config.DIMENSION_EMBEDDINGS} dimensiones)...")
+          f"{config.PROVEEDOR_EMBEDDINGS}: {config.MODELO_EMBEDDINGS} "
+          f"({config.DIMENSION_EMBEDDINGS} dimensiones)...")
     embeddings = config.crear_embeddings()
 
     from langchain_community.vectorstores import FAISS  # import diferido
 
     almacen = FAISS.from_documents(fragmentos, embeddings)
-
-    ruta_faiss = _ruta_str(config.DIR_INDICE_FAISS)
-    if os.path.exists(ruta_faiss):
-        shutil.rmtree(ruta_faiss)
-    Path(ruta_faiss).parent.mkdir(parents=True, exist_ok=True)
-    almacen.save_local(ruta_faiss)
+    if almacen.index.d != config.DIMENSION_EMBEDDINGS:
+        raise RuntimeError("La dimensión del índice FAISS no coincide con EMBEDDING_DIM.")
+    guardar_indice(almacen, config.DIR_INDICE_FAISS)
 
     aciertos = getattr(embeddings, "aciertos", 0)
     fallos = getattr(embeddings, "fallos", 0)
@@ -372,6 +402,7 @@ def ingestar(forzar: bool = False) -> dict[str, Any]:
 
     resumen: dict[str, Any] = {
         "huella": huella,
+        "proveedor_embeddings": config.PROVEEDOR_EMBEDDINGS,
         "modelo_embeddings": config.MODELO_EMBEDDINGS,
         "dimension": config.DIMENSION_EMBEDDINGS,
         "chunk_size": config.TAMANO_CHUNK,

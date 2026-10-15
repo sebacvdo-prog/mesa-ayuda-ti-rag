@@ -76,8 +76,47 @@ LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
 MODELO_CHAT: str = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
 
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
-MODELO_EMBEDDINGS: str = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-001")
-DIMENSION_EMBEDDINGS: int = int(os.getenv("EMBEDDING_DIM", "768"))
+PROVEEDOR_EMBEDDINGS: str = os.getenv("EMBEDDING_PROVIDER", "google").strip().lower()
+MODELO_EMBEDDINGS: str = os.getenv(
+    "EMBEDDING_MODEL",
+    "sentence-transformers/all-MiniLM-L6-v2"
+    if PROVEEDOR_EMBEDDINGS == "huggingface" else "models/gemini-embedding-001",
+).strip()
+try:
+    DIMENSION_EMBEDDINGS: int = int(os.getenv(
+        "EMBEDDING_DIM", "384" if PROVEEDOR_EMBEDDINGS == "huggingface" else "768"
+    ))
+except ValueError:
+    DIMENSION_EMBEDDINGS = 0  # validar_configuracion informa el error sin romper el import
+
+
+def configuracion_embeddings() -> dict[str, Any]:
+    """Identidad compartida por la caché, la huella de ingesta y FAISS."""
+    return {
+        "proveedor": PROVEEDOR_EMBEDDINGS,
+        "modelo": MODELO_EMBEDDINGS,
+        "dimension": DIMENSION_EMBEDDINGS,
+        "normalizar": PROVEEDOR_EMBEDDINGS == "huggingface",
+    }
+
+
+def indice_embeddings_compatible(ruta_indice: Path) -> bool:
+    """Exige un índice completo con la misma configuración de embeddings.
+
+    Los índices anteriores sin metadatos se conservan, pero deben reconstruirse
+    porque la dimensión por sí sola no identifica el espacio vectorial.
+    """
+    if not all(archivo_existe(ruta_indice / nombre) for nombre in (
+        "index.faiss", "index.pkl", "configuracion_embeddings.json"
+    )):
+        return False
+    try:
+        with open(
+            ruta_segura(ruta_indice / "configuracion_embeddings.json"), encoding="utf-8"
+        ) as archivo:
+            return json.load(archivo) == configuracion_embeddings()
+    except (OSError, ValueError):
+        return False
 
 # ---------------------------------------------------------------------------
 # Constantes del pipeline RAG
@@ -93,7 +132,18 @@ TOP_K: int = 4
 """Cantidad de fragmentos que se recuperan por consulta."""
 
 UMBRAL_SIMILITUD: float = 0.72
-"""Puntaje mínimo de relevancia (0-1). Debajo de esto el fragmento se descarta."""
+"""Umbral original de Google; no se altera al configurar Hugging Face."""
+
+try:
+    UMBRAL_SIMILITUD_HF: float = float(os.getenv("HF_SIMILARITY_THRESHOLD", "0.471764"))
+except ValueError:
+    UMBRAL_SIMILITUD_HF = float("nan")  # se informa al validar, sin romper el import
+"""Calibrado para all-MiniLM-L6-v2; ver eval.calibrate_retrieval y su informe."""
+
+
+def umbral_similitud() -> float:
+    """Selecciona el umbral del proveedor sin modificar el original de Google."""
+    return UMBRAL_SIMILITUD_HF if PROVEEDOR_EMBEDDINGS == "huggingface" else UMBRAL_SIMILITUD
 
 MARGEN_REORDENAMIENTO: float = 0.05
 """Dos fragmentos cuyos puntajes difieren menos que esto se consideran
@@ -219,12 +269,43 @@ def reintentar_con_backoff(
 # ---------------------------------------------------------------------------
 
 
+class _EmbeddingsDimensionados(Embeddings):
+    """Comprueba los vectores antes de guardarlos en caché o enviarlos a FAISS."""
+
+    def __init__(
+        self, modelo_base: Embeddings, dimension: int,
+        parametros: dict[str, Any] | None = None,
+    ) -> None:
+        self.modelo_base = modelo_base
+        self.dimension = dimension
+        self.parametros = parametros or {}
+
+    def _validar(self, vector: list[float]) -> list[float]:
+        if len(vector) != self.dimension:
+            raise RuntimeError(
+                f"El modelo devolvió {len(vector)} dimensiones; "
+                f"EMBEDDING_DIM={self.dimension}. Corregí la configuración "
+                "y reconstruí el índice con: python -m src.ingest"
+            )
+        return vector
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        vectores = self.modelo_base.embed_documents(texts, **self.parametros)
+        if len(vectores) != len(texts):
+            raise RuntimeError("El modelo no devolvió un vector por documento.")
+        return [self._validar(vector) for vector in vectores]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._validar(self.modelo_base.embed_query(text, **self.parametros))
+
+
 class EmbeddingsConCache(Embeddings):
     """Envoltura que memoriza vectores en SQLite para no recalcularlos.
 
-    La clave de caché es el hash SHA-256 de ``modelo | tipo | texto``, así que un
-    cambio de modelo invalida automáticamente las entradas viejas. Cada llamada
-    real al proveedor pasa por :func:`reintentar_con_backoff`.
+    La clave de caché es el hash SHA-256 de ``configuración | tipo | texto``.
+    La fábrica incluye proveedor, modelo, dimensión y normalización, así que no
+    reutiliza vectores de otra configuración. Cada llamada real al proveedor
+    pasa por :func:`reintentar_con_backoff`.
 
     Attributes:
         modelo_base: Instancia de embeddings de LangChain a la que se delega.
@@ -394,11 +475,26 @@ def validar_configuracion(
             "Falta LLM_BASE_URL en el archivo .env "
             "(usar https://api.groq.com/openai/v1)."
         )
-    if requiere_embeddings and not GOOGLE_API_KEY:
-        problemas.append(
-            "Falta GOOGLE_API_KEY en el archivo .env (clave de Google AI Studio, "
-            "se obtiene gratis en https://aistudio.google.com/app/apikey)."
-        )
+    if requiere_embeddings:
+        if PROVEEDOR_EMBEDDINGS not in ("google", "huggingface"):
+            problemas.append("EMBEDDING_PROVIDER debe ser google o huggingface.")
+        if PROVEEDOR_EMBEDDINGS == "google" and not GOOGLE_API_KEY:
+            problemas.append(
+                "Falta GOOGLE_API_KEY en el archivo .env (clave de Google AI Studio, "
+                "se obtiene gratis en https://aistudio.google.com/app/apikey)."
+            )
+        if not MODELO_EMBEDDINGS:
+            problemas.append("EMBEDDING_MODEL no puede estar vacío.")
+        if PROVEEDOR_EMBEDDINGS == "huggingface" and not 0 <= UMBRAL_SIMILITUD_HF <= 1:
+            problemas.append("HF_SIMILARITY_THRESHOLD debe ser un número finito entre 0 y 1.")
+        if DIMENSION_EMBEDDINGS <= 0:
+            problemas.append("EMBEDDING_DIM debe ser un entero positivo.")
+        elif (
+            PROVEEDOR_EMBEDDINGS == "huggingface"
+            and MODELO_EMBEDDINGS == "sentence-transformers/all-MiniLM-L6-v2"
+            and DIMENSION_EMBEDDINGS != 384
+        ):
+            problemas.append("all-MiniLM-L6-v2 requiere EMBEDDING_DIM=384.")
     return problemas
 
 
@@ -450,12 +546,12 @@ def crear_llm(temperatura: float = TEMPERATURA, max_tokens: int = MAX_TOKENS) ->
 
 
 def crear_embeddings(usar_cache: bool = True) -> Embeddings:
-    """Construye el modelo de embeddings de Gemini, con caché en disco.
+    """Construye embeddings de Google o Hugging Face local, con caché opcional.
 
-    Se pide explícitamente ``output_dimensionality=768`` porque
-    ``gemini-embedding-001`` entrega 3072 dimensiones por defecto y el índice
-    FAISS del proyecto está dimensionado a 768. Si la versión instalada del
-    conector no acepta ese parámetro, se cae con elegancia al constructor simple.
+    Google sigue usando ``GoogleGenerativeAIEmbeddings``. Se pasa la dimensión
+    también a cada llamada: el conector 2.x no la conserva en el constructor.
+    Hugging Face ejecuta Sentence Transformers en CPU y normaliza los vectores.
+    En ambos casos se comprueba la dimensión real antes de persistir vectores.
 
     Args:
         usar_cache: Si se envuelve el modelo en :class:`EmbeddingsConCache`.
@@ -464,27 +560,40 @@ def crear_embeddings(usar_cache: bool = True) -> Embeddings:
         Instancia de embeddings lista para usar.
 
     Raises:
-        RuntimeError: Si falta GOOGLE_API_KEY.
+        RuntimeError: Si la configuración del proveedor no es válida.
     """
     problemas = validar_configuracion(requiere_llm=False, requiere_embeddings=True)
     if problemas:
         raise RuntimeError(" ".join(problemas))
 
-    from langchain_google_genai import GoogleGenerativeAIEmbeddings
-
     configurar_langsmith()
-    try:
-        base: Embeddings = GoogleGenerativeAIEmbeddings(
-            model=MODELO_EMBEDDINGS,
-            google_api_key=GOOGLE_API_KEY,
-            output_dimensionality=DIMENSION_EMBEDDINGS,
-        )
-    except TypeError:
-        base = GoogleGenerativeAIEmbeddings(
-            model=MODELO_EMBEDDINGS,
-            google_api_key=GOOGLE_API_KEY,
-        )
+    parametros: dict[str, Any] = {}
+    if PROVEEDOR_EMBEDDINGS == "huggingface":
+        from langchain_huggingface import HuggingFaceEmbeddings
 
+        base: Embeddings = HuggingFaceEmbeddings(
+            model_name=MODELO_EMBEDDINGS,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
+        )
+    else:
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+        try:
+            base = GoogleGenerativeAIEmbeddings(
+                model=MODELO_EMBEDDINGS,
+                google_api_key=GOOGLE_API_KEY,
+                output_dimensionality=DIMENSION_EMBEDDINGS,
+            )
+        except TypeError:
+            base = GoogleGenerativeAIEmbeddings(
+                model=MODELO_EMBEDDINGS,
+                google_api_key=GOOGLE_API_KEY,
+            )
+        parametros = {"output_dimensionality": DIMENSION_EMBEDDINGS}
+
+    base = _EmbeddingsDimensionados(base, DIMENSION_EMBEDDINGS, parametros)
     if not usar_cache:
         return base
-    return EmbeddingsConCache(base, f"{MODELO_EMBEDDINGS}@{DIMENSION_EMBEDDINGS}")
+    identidad = json.dumps(configuracion_embeddings(), sort_keys=True)
+    return EmbeddingsConCache(base, identidad)

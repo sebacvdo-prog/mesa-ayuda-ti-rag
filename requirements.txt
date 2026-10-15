@@ -11,8 +11,10 @@ langchain-community>=0.3.0,<0.4
 # (LLM_BASE_URL=https://api.groq.com/openai/v1). No se instala el SDK de Groq.
 langchain-openai>=0.2.0,<0.4
 
-# --- Embeddings: gemini-embedding-001 ---
+# --- Embeddings: Google Gemini o Hugging Face local ---
 langchain-google-genai>=2.0.0,<3.0
+langchain-huggingface==0.1.2
+sentence-transformers==6.1.0
 
 # --- Vector store ---
 faiss-cpu>=1.8.0,<2.0
