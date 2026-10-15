@@ -6,7 +6,7 @@ Asistente conversacional con **Retrieval-Augmented Generation (RAG)** que apoya 
 
 El sistema recupera el procedimiento aplicable a cada consulta desde la base documental interna y externa, complementa con datos del ITSM vía SQL, y entrega al agente una respuesta con pasos numerados, diagnóstico probable, tiempo comprometido según el SLA, criterio de escalamiento y cita de la fuente.
 
-## Agente EP2 — Etapa 3
+## Agente EP2 — Etapa 4
 
 La continuación EP2 incorpora una CLI independiente con LangChain Agents y
 Groq `openai/gpt-oss-20b`. El modelo selecciona entre seis herramientas:
@@ -25,6 +25,8 @@ python -m pip check
 python -m eval.check_ep2_agent --offline-embeddings
 # Continuidad real con Groq entre dos procesos nuevos.
 python -m eval.check_ep2_memory
+# Plan adaptativo real: tres procesos CLI, con pausas entre fases por cuota.
+python -m eval.check_ep2_plan
 ```
 
 `EP2_LLM_MODEL` configura el modelo EP2; `LLM_MODEL` conserva el modelo EP1.
@@ -36,10 +38,20 @@ intercambios resumidos, hechos con procedencia y estado de tarea en SQLite EP2,
 separados por usuario, sesión y perfil. Para continuar tras `/salir`, ejecutar
 de nuevo con los mismos identificadores. Conserva seis intercambios y hasta 32
 hechos por contexto, con retención de 30 días y límites configurables.
-Las autorizaciones de escritura no se restauran. La planificación avanzada
-queda pendiente para Etapa 4.
+Las autorizaciones de escritura no se restauran. El agente incorpora un plan
+validado con prioridades, dependencias y estados, actualizado por resultados
+reales. La CLI muestra plan inicial, observaciones, cambios y resultado final.
+Un nuevo reporte de impacto reabre verificaciones y separa prioridad registrada
+de propuesta. `POSPONER` conserva una nota pendiente sin escribirla; al reabrir
+se necesita una nueva vista previa y confirmación. Etapa 5 queda pendiente.
+La Etapa 4 pasa 308 pruebas automáticas; su validación real completa está
+pendiente por cuota diaria de Groq (última corrida real: **11/15 verificaciones**).
+Los intentos parciales están documentados
+en la evidencia, sin presentarlos como una demostración integral aprobada.
 
-Ver [memoria y ejecución EP2 actual](docs/ep2_etapa3.md),
+Ver [planificación y ejecución EP2 actual](docs/ep2_etapa4.md),
+[evidencia del plan adaptativo](docs/evidencias/ep2_plan_real.md),
+[memoria persistente](docs/ep2_etapa3.md),
 [arquitectura de herramientas](docs/ep2_etapa2.md),
 [controles transaccionales de Etapa 1](docs/ep2_etapa1.md) y
 [evidencia de continuidad real](docs/evidencias/ep2_memoria_real.md).

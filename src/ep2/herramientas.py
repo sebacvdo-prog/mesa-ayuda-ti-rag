@@ -73,6 +73,15 @@ class HerramientasEP2:
         """Almacenamiento de la aplicación; nunca se expone como herramienta."""
         return self._almacen
 
+    def descartar_confirmaciones(self) -> None:
+        """Invalida vistas previas en RAM ante nuevo plan/condiciones/contenido.
+
+        No borra notas ni auditoría. Solo la aplicación, nunca el LLM, invoca
+        esta frontera antes de reemplazar una propuesta o replanificar.
+        """
+        with self._cerrojo:
+            self._pendientes.clear()
+
     def _puede_operar_ticket(self) -> bool:
         return self._contexto.perfil == "agente"
 

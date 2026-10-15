@@ -16,7 +16,7 @@ from pydantic import Field
 
 from src import guardrails
 from src.ep2.almacenamiento import AlmacenEP2
-from src.ep2.contratos import ContextoEjecucion, Contrato, RespuestaAgenteEP2, ResultadoHerramienta
+from src.ep2.contratos import ContextoEjecucion, Contrato, PlanEjecucion, RespuestaAgenteEP2, ResultadoHerramienta
 from src.ep2.herramientas import contiene_credenciales
 
 
@@ -88,6 +88,7 @@ class EstadoMemoria(Contrato):
     intercambios: tuple[IntercambioMemoria, ...] = ()
     eventos: tuple[EventoMemoria, ...] = ()
     tarea: TareaMemoria | None = None
+    plan: PlanEjecucion | None = None
 
 
 @dataclass(frozen=True)
@@ -328,14 +329,26 @@ class MemoriaEP2:
                                              consulta=consulta_resumida, resultado=resumen[:768])
             return estado.model_copy(update={
                 "intercambios": (*estado.intercambios, intercambio),
+                "plan": self._validar_plan(estado.plan, respuesta.plan_final),
                 "tarea": TareaMemoria(objetivo=consulta_resumida, estado=respuesta.estado,
                                       pendientes=pendientes.get(respuesta.estado, ()), fecha=self.reloj()),
             })
         return self._guardar(actualizar)
 
-    def registrar_confirmacion(self, resultado: ResultadoHerramienta) -> EstadoMemoria:
+    @staticmethod
+    def _validar_plan(anterior: PlanEjecucion | None, nuevo: PlanEjecucion | None) -> PlanEjecucion | None:
+        if nuevo is None:
+            return anterior
+        if anterior and anterior.id == nuevo.id and (
+            nuevo.revision < anterior.revision or nuevo.revision == anterior.revision and nuevo != anterior
+        ):
+            raise ValueError("Otra ejecución actualizó el plan; recuperar antes de reintentar.")
+        return nuevo
+
+    def registrar_confirmacion(self, resultado: ResultadoHerramienta, plan: PlanEjecucion | None = None) -> EstadoMemoria:
         def actualizar(estado: EstadoMemoria) -> EstadoMemoria:
             estado = self._incorporar(estado, [self.observar("interfaz_humana", resultado)])
+            estado = estado.model_copy(update={"plan": self._validar_plan(estado.plan, plan)})
             estados = {"NOTA_REGISTRADA": "nota_registrada", "NOTA_REUTILIZADA": "nota_registrada",
                        "NOTA_CANCELADA": "cancelada", "CONFIRMACION_EXPIRADA": "requiere_confirmacion"}
             if resultado.codigo in estados and estado.tarea and estado.tarea.estado == "requiere_confirmacion":
