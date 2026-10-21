@@ -113,10 +113,14 @@ def test_herramientas_privadas_denegadas_a_usuario_final(entorno, nombre):
     if nombre == "registrar_nota_ticket":
         args["texto"] = "Nota sin permisos."
     llm = modelo(llamar(nombre, args), AIMessage(content="No autorizado."))
-    respuesta = AgenteEP2(servicio, llm=llm).responder("Consulta el caso del ticket INC-2026-0411.")
+    agente = AgenteEP2(servicio, llm=llm)
+    respuesta = agente.responder("Consulta el caso del ticket INC-2026-0411.")
     assert respuesta.estado == "denegado"
     assert respuesta.herramientas[0].codigo == "PERMISO_REQUERIDO"
     assert contar(almacen) == 0
+    assert not llm.entradas
+    assert agente.decisiones[0]["estado_oferta"] == "sin_permisos"
+    assert agente.decisiones[0]["herramientas_ofrecidas"] == []
 
 
 def test_nota_pausa_sin_otra_llamada_ni_escritura_aunque_chat_diga_confirmo(entorno):
@@ -177,10 +181,13 @@ def test_lote_con_nota_y_consulta_es_rechazado_antes_de_ejecutar(entorno):
 def test_limite_de_iteraciones_detiene_modelo_que_sigue_pidiendo_herramientas(entorno):
     servicio, _, _ = entorno
     llm = modelo(llamar("consultar_sla", {"prioridad": "P2"}))
-    respuesta = AgenteEP2(servicio, llm=llm, opciones=ConfiguracionAgente(max_iteraciones=2)).responder("Consulta SLA P2.")
+    agente = AgenteEP2(servicio, llm=llm, opciones=ConfiguracionAgente(max_iteraciones=2))
+    respuesta = agente.responder("Consulta SLA P2.")
     assert respuesta.estado == "limite"
     assert len(llm.entradas) == 2
-    assert len(respuesta.herramientas) == 2
+    assert len(respuesta.herramientas) == 1
+    assert agente.decisiones[1]["codigo"] == "PLAN_PASO_BLOQUEADO"
+    assert not agente.decisiones[1]["ejecutada"]
 
 
 def test_limite_de_tiempo_impide_siguiente_iteracion(entorno, monkeypatch):

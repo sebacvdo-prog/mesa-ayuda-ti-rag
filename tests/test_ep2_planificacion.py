@@ -368,8 +368,11 @@ def test_nota_no_solicitada_no_invoca_servicio(entorno):
     servicio, memoria, _ = entorno
     servicio.preparar_nota = Mock(wraps=servicio.preparar_nota)
     llm = modelo(llamada("registrar_nota_ticket", ticket_id=TICKET, texto="No pedida"))
-    r = AgenteEP2(servicio, llm=llm).responder(f"Consulta ticket {TICKET}.")
-    assert r.herramientas[0].codigo == "PLAN_NOTA_NO_SOLICITADA"
+    a = AgenteEP2(servicio, llm=llm)
+    r = a.responder(f"Consulta ticket {TICKET}.")
+    assert r.estado == "limite" and not r.herramientas
+    assert all(d["codigo"] == "PLAN_NOTA_NO_SOLICITADA" and not d["ejecutada"] for d in a.decisiones)
+    assert all("registrar_nota_ticket" not in d["herramientas_ofrecidas"] for d in a.decisiones)
     servicio.preparar_nota.assert_not_called()
     with memoria.almacen._conexion() as c:
         assert c.execute("SELECT COUNT(*) FROM notas").fetchone()[0] == 0
@@ -496,13 +499,14 @@ def test_correccion_de_decision_indica_herramientas_disponibles_sin_salida_inter
     assert "No propongas la nota" in segunda
 
 
-def test_modelo_conserva_registro_y_recibe_eleccion_del_plan_actual(entorno):
+def test_modelo_recibe_subconjunto_y_ejecutor_conserva_registro(entorno):
     servicio, _, _ = entorno
     llm = modelo(llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"), AIMessage(content="Fuentes verificadas"))
     r = AgenteEP2(servicio, llm=llm).responder(f"Consulta ticket {TICKET} y su SLA.")
     assert r.estado == "ok"
-    registro = [h.name for h in AgenteEP2(servicio).herramientas]
-    assert llm.enlaces == [(registro, {}), (registro, {})]
+    assert len(AgenteEP2(servicio).herramientas) == 6
+    opciones = {"tool_choice": "required", "parallel_tool_calls": False}
+    assert llm.enlaces == [(["consultar_ticket"], opciones), (["consultar_sla"], opciones)]
     assert "CONTROL DEL SERVIDOR" in llm.entradas[0][-1].content
     assert "herramientas: consultar_sla." in llm.entradas[1][-1].content
 
@@ -512,7 +516,8 @@ def test_seleccion_autonoma_entre_herramientas_con_igual_prioridad(entorno):
     llm = modelo(llamada("consultar_activo", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"), AIMessage(content="Activo y SLA verificados"))
     r = AgenteEP2(servicio, llm=llm).responder(f"Consulta SLA P2 y activo de {TICKET}.")
     assert r.estado == "ok"
-    assert llm.enlaces[0][1] == {}
+    assert llm.enlaces[0] == (["consultar_sla", "consultar_activo"],
+                             {"tool_choice": "required", "parallel_tool_calls": False})
     assert "herramientas: consultar_sla, consultar_activo." in llm.entradas[0][-1].content
     assert [t.nombre for t in r.herramientas] == ["consultar_activo", "consultar_sla"]
 
@@ -524,3 +529,291 @@ def test_scratchpad_de_correccion_excluye_log_del_modelo_y_errores_obsoletos():
              (AgentAction("_Exception", "", "otra salida interna"), "Corrección vigente")]
     mensajes = _formatear_observaciones(pasos)
     assert [m.content for m in mensajes] == ["Corrección vigente"]
+
+
+IMPACTO = "Ahora hay varios usuarios afectados. Reevalúa el impacto y propón una nota de seguimiento."
+
+
+def agente_para_impacto(entorno, *salidas):
+    servicio, memoria, _ = entorno
+    p = Planificador(SOLICITUD)
+    ticket_sla(p, servicio)
+    ejecutar(p, "buscar_procedimiento", procedimiento())
+    memoria.registrar_turno(SOLICITUD, RespuestaAgenteEP2(estado="ok", texto="Inicial sintético", plan_final=p.plan), [])
+    servicio.buscar_procedimiento = Mock(return_value=procedimiento())
+    servicio.preparar_nota = Mock(wraps=servicio.preparar_nota)
+    llm = modelo(*salidas)
+    return AgenteEP2(servicio, llm=llm, memoria=memoria), llm
+
+
+def nota_prematura():
+    return llamada("registrar_nota_ticket", ticket_id=TICKET, texto="contenido_privado_no_guardar")
+
+
+def verificar_cero_escrituras(servicio):
+    with servicio.almacen._conexion() as c:
+        assert c.execute("SELECT COUNT(*) FROM notas").fetchone()[0] == 0
+        assert c.execute("SELECT COUNT(*) FROM auditoria").fetchone()[0] == 0
+
+
+def test_ocho_decisiones_compatibles_con_corrida_reproducen_limite_y_traza_completa(entorno, monkeypatch):
+    # La evidencia real no conservó la posición de las tres notas: este es un guion compatible.
+    a, llm = agente_para_impacto(entorno,
+        llamada("analizar_incidente", ticket_id=TICKET), nota_prematura(),
+        llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
+        llamada("buscar_procedimiento", consulta="VPN"), nota_prematura(),
+        llamada("analizar_incidente", ticket_id=TICKET), nota_prematura())
+    preparaciones = []
+    preparar_original = Planificador.preparar
+    def preparar(p, nombre, argumentos):
+        preparaciones.append(nombre)
+        return preparar_original(p, nombre, argumentos)
+    monkeypatch.setattr(Planificador, "preparar", preparar)
+    r = a.responder(IMPACTO)
+    assert a.opciones.max_iteraciones == 8 and len(llm.entradas) == 8 and r.estado == "limite"
+    decisiones = a.decisiones
+    assert [d["indice"] for d in decisiones] == list(range(1, 9))
+    assert [d["codigo"] for d in decisiones] == [
+        "PLAN_DEPENDENCIA_PENDIENTE", "PLAN_DEPENDENCIA_PENDIENTE", "TICKET_CONSULTADO",
+        "SLA_CONSULTADO", "PLAN_PRIORIDAD_PENDIENTE", "PLAN_DEPENDENCIA_PENDIENTE",
+        "INCIDENTE_ANALIZADO", "PLAN_DEPENDENCIA_PENDIENTE"]
+    rechazadas = [d for d in decisiones if not d["ejecutada"]]
+    assert len(rechazadas) == 5 and all(d["correccion"] == "_Exception" for d in rechazadas)
+    assert all(d["plan_antes"] == d["plan_despues"] for d in rechazadas)
+    assert decisiones[0]["dependencias_faltantes"] == ["p1", "p2"]
+    assert decisiones[4]["dependencias_faltantes"] == [] and decisiones[4]["prioridad_pendiente"] == 1
+    assert decisiones[4]["habilitadas"] == ["analizar_incidente"]
+    assert decisiones[-1]["habilitadas"] == ["buscar_procedimiento"]
+    assert preparaciones == ["consultar_ticket", "consultar_sla", "analizar_incidente"]
+    assert [t.nombre for t in r.herramientas] == preparaciones
+    assert all(p.intentos == 0 and p.codigo == "LIMITE_EJECUCION" for p in r.plan_final.pasos
+               if p.herramienta in ("buscar_procedimiento", "registrar_nota_ticket"))
+    a.servicio.buscar_procedimiento.assert_not_called()
+    a.servicio.preparar_nota.assert_not_called()
+    assert "contenido_privado_no_guardar" not in json.dumps(decisiones)
+    verificar_cero_escrituras(a.servicio)
+
+
+def test_recupera_dos_selecciones_incorrectas_y_reintenta_procedimiento_al_habilitarse(entorno):
+    a, llm = agente_para_impacto(entorno,
+        llamada("analizar_incidente", ticket_id=TICKET),
+        llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
+        llamada("buscar_procedimiento", consulta="VPN"),
+        llamada("analizar_incidente", ticket_id=TICKET),
+        llamada("buscar_procedimiento", consulta="VPN"), nota_prematura())
+    r = a.responder(IMPACTO)
+    assert r.estado == "requiere_confirmacion" and len(r.confirmaciones) == 1
+    assert len(llm.entradas) == 7 and len(a.decisiones) == 7
+    assert sum(d["ejecutada"] for d in a.decisiones) == 5
+    assert [d["codigo"] for d in a.decisiones if d["correccion"]] == [
+        "PLAN_DEPENDENCIA_PENDIENTE", "PLAN_PRIORIDAD_PENDIENTE"]
+    for indice, requerido in ((1, "p1, p2"), (4, "mayor prioridad: analizar_incidente")):
+        mensajes = " ".join(str(m.content) for m in llm.entradas[indice])
+        assert "La herramienta seleccionada no se ejecutó." in mensajes and requerido in mensajes
+        assert "puede volver a seleccionarse cuando el plan la habilite" in mensajes
+        assert "AHORA según el plan" in mensajes
+    assert a.decisiones[5]["seleccion"] == ["buscar_procedimiento"] and a.decisiones[5]["ejecutada"]
+    assert next(p for p in r.plan_final.pasos if p.herramienta == "buscar_procedimiento").intentos == 1
+    a.servicio.buscar_procedimiento.assert_called_once()
+    a.servicio.preparar_nota.assert_called_once()
+    assert next(p for p in r.plan_final.pasos if p.herramienta == "registrar_nota_ticket").codigo == "CONFIRMACION_REQUERIDA"
+    verificar_cero_escrituras(a.servicio)
+
+
+def test_ocho_notas_prematuras_no_ejecutan_herramientas_ni_consumen_intentos(entorno, monkeypatch):
+    a, llm = agente_para_impacto(entorno, *[nota_prematura() for _ in range(8)])
+    preparar = Mock(side_effect=AssertionError("preparar no debe anticiparse"))
+    monkeypatch.setattr(Planificador, "preparar", preparar)
+    r = a.responder(IMPACTO)
+    assert r.estado == "limite" and len(llm.entradas) == len(a.decisiones) == 8
+    assert not r.herramientas and not r.confirmaciones
+    assert all(d["codigo"] == "PLAN_DEPENDENCIA_PENDIENTE" and d["correccion"] == "_Exception"
+               and not d["ejecutada"] and d["modelo_respondio"] for d in a.decisiones)
+    assert all(d["plan_antes"] == d["plan_despues"] for d in a.decisiones)
+    assert all(p.intentos == 0 for p in r.plan_final.pasos)
+    preparar.assert_not_called()
+    a.servicio.preparar_nota.assert_not_called()
+    verificar_cero_escrituras(a.servicio)
+
+
+def test_decisiones_de_parser_invalido_no_guardan_argumentos_ni_log_del_modelo(entorno):
+    invalida = AIMessage(content="razonamiento_privado", additional_kwargs={"tool_calls": [{
+        "id": "i1", "type": "function", "function": {"name": "consultar_ticket", "arguments": "{secreto_privado"}}]})
+    a, llm = agente_para_impacto(entorno, *[invalida for _ in range(8)])
+    assert a.responder(IMPACTO).estado == "limite"
+    assert len(a.decisiones) == 8
+    assert all(d["codigo"] == "FORMATO_INVALIDO" and d["correccion"] == "_Exception" for d in a.decisiones)
+    assert all(d["seleccion"] == ["consultar_ticket"] for d in a.decisiones)
+    assert "razonamiento_privado" not in json.dumps(a.decisiones)
+    assert "secreto_privado" not in json.dumps(a.decisiones)
+    assert "secreto_privado" not in str(llm.entradas[-1])
+    verificar_cero_escrituras(a.servicio)
+
+
+def test_traza_incluye_respuesta_final_y_no_se_persiste_en_memoria(entorno):
+    servicio, memoria, _ = entorno
+    a = AgenteEP2(servicio, llm=modelo(llamada("consultar_ticket", ticket_id=TICKET),
+                                    AIMessage(content="razonamiento_privado_no_guardar")))
+    assert a.responder(f"Consulta ticket {TICKET}.").estado == "ok"
+    assert len(a.decisiones) == 2 and a.decisiones[1]["codigo"] == "RESPUESTA_FINAL"
+    assert not a.decisiones[1]["ejecutada"] and a.decisiones[1]["seleccion"] == []
+    assert "razonamiento_privado_no_guardar" not in json.dumps(a.decisiones)
+    copia = a.decisiones
+    copia[0]["seleccion"].clear()
+    assert a.decisiones[0]["seleccion"] == ["consultar_ticket"]
+    assert "decisiones" not in memoria.recuperar().model_dump()
+
+
+def test_traza_conserva_error_previo_a_respuesta_sin_texto_de_excepcion(entorno):
+    class ModeloRoto:
+        def bind_tools(self, *args):
+            return self
+        def invoke(self, *args, **kwargs):
+            raise RuntimeError("gsk_secreto_privado")
+    servicio, _, _ = entorno
+    a = AgenteEP2(servicio, llm=ModeloRoto())
+    assert a.responder(SOLICITUD).estado == "error"
+    assert len(a.decisiones) == 1 and a.decisiones[0]["codigo"] == "ERROR_EJECUCION"
+    assert not a.decisiones[0]["modelo_respondio"]
+    assert "secreto_privado" not in json.dumps(a.decisiones)
+
+
+@pytest.mark.parametrize("llamadas", [None, [{"function": None}], [{"function": {"name": {"secreto": "privado"}}}]])
+def test_trazador_tolera_campos_opcionales_sin_exponer_valores_malformados(entorno, llamadas):
+    from types import SimpleNamespace
+    servicio, _, _ = entorno
+    a = AgenteEP2(servicio, llm=modelo(AIMessage(content="OK")))
+    a._planificador = Planificador(SOLICITUD)
+    a._iniciar_decision()
+    a._recibir_decision(SimpleNamespace(tool_calls=[], additional_kwargs={"tool_calls": llamadas}))
+    assert a.decisiones[0]["modelo_respondio"]
+    assert "privado" not in json.dumps(a.decisiones)
+
+
+@pytest.mark.parametrize("caso,esperado", [
+    ("inicial", "acciones_obligatorias"), ("completado", "plan_completado"),
+    ("bloqueado", "plan_bloqueado"), ("estado", "solo_estado"),
+    ("permisos", "sin_permisos"), ("flexible", "consulta_flexible"),
+])
+def test_oferta_es_pura_y_distingue_conjuntos_vacios(entorno, monkeypatch, caso, esperado):
+    from src.ep2.agente import _oferta_herramientas
+    servicio, _, _ = entorno
+    p = Planificador("Consulta SLA P2." if caso == "flexible" else SOLICITUD)
+    if caso == "completado":
+        ticket_sla(p, servicio)
+        ejecutar(p, "buscar_procedimiento", procedimiento())
+    if caso in ("bloqueado", "estado"):
+        p.finalizar("limite")
+    if caso == "estado":
+        p = Planificador("Retoma el plan sin ejecutar acciones.", anterior=p.plan)
+    antes = p.plan.model_dump_json(), set(p.ejecutadas)
+    preparar = Mock(side_effect=AssertionError("No preparar durante la oferta"))
+    monkeypatch.setattr(p, "preparar", preparar)
+    catalogo = AgenteEP2(servicio).herramientas
+    for _ in range(2):
+        ofrecidas, estado = _oferta_herramientas(p, catalogo, "usuario_final" if caso == "permisos" else "agente")
+        assert estado == esperado
+        assert bool(ofrecidas) == (caso in ("inicial", "flexible"))
+    assert (p.plan.model_dump_json(), p.ejecutadas) == antes
+    preparar.assert_not_called()
+
+
+def test_ocho_analisis_insistentes_nunca_se_ofrecen_ni_ejecutan(entorno, monkeypatch):
+    a, llm = agente_para_impacto(entorno, *[llamada("analizar_incidente", ticket_id=TICKET) for _ in range(8)])
+    analizar = Mock(side_effect=AssertionError("Analisis no habilitado"))
+    monkeypatch.setattr(a.servicio, "analizar_incidente", analizar)
+    assert a.responder(IMPACTO).estado == "limite"
+    assert len(a.decisiones) == len(llm.enlaces) == 8
+    assert all(nombres == ["consultar_ticket"] for nombres, _ in llm.enlaces)
+    assert all(d["herramientas_ofrecidas"] == ["consultar_ticket"] and not d["ejecutada"] for d in a.decisiones)
+    analizar.assert_not_called()
+    verificar_cero_escrituras(a.servicio)
+
+
+def test_oferta_impacto_cambia_en_un_ejecutor_y_no_modifica_grafo(entorno, monkeypatch):
+    import src.ep2.agente as modulo
+    a, llm = agente_para_impacto(entorno,
+        llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
+        llamada("analizar_incidente", ticket_id=TICKET), llamada("buscar_procedimiento", consulta="VPN"), nota_prematura())
+    ejecutores = Mock(wraps=modulo.AgentExecutor)
+    monkeypatch.setattr(modulo, "AgentExecutor", ejecutores)
+    r = a.responder(IMPACTO)
+    assert r.estado == "requiere_confirmacion"
+    ejecutores.assert_called_once()
+    assert len(ejecutores.call_args.kwargs["tools"]) == 6
+    assert ejecutores.call_args.kwargs["max_iterations"] == 8
+    esperadas = [[n] for n in ("consultar_ticket", "consultar_sla", "analizar_incidente", "buscar_procedimiento", "registrar_nota_ticket")]
+    assert [n for n, _ in llm.enlaces] == esperadas
+    assert [d["herramientas_ofrecidas"] for d in a.decisiones] == esperadas
+    assert all(d["estado_oferta"] == "acciones_obligatorias" and d["tool_choice"] == "required" for d in a.decisiones)
+    assert {(p.id, p.dependencias) for p in r.plan_inicial.pasos} == {(p.id, p.dependencias) for p in r.plan_final.pasos}
+    verificar_cero_escrituras(a.servicio)
+
+
+def test_flexible_sustituye_lectura_sin_ofrecer_nota_y_sin_required(entorno):
+    servicio, _, _ = entorno
+    llm = modelo(llamada("analizar_incidente", ticket_id=TICKET), AIMessage(content="Triage consultado"))
+    a = AgenteEP2(servicio, llm=llm)
+    r = a.responder(f"Revisa el ticket {TICKET}.")
+    assert r.estado == "ok"
+    assert [t.nombre for t in r.herramientas] == ["analizar_incidente"]
+    assert all("registrar_nota_ticket" not in nombres and "tool_choice" not in opciones for nombres, opciones in llm.enlaces)
+    assert all(d["estado_oferta"] == "consulta_flexible" and d["tool_choice"] == "auto" for d in a.decisiones)
+    assert any(p.codigo == "SELECCION_AUTONOMA" for p in r.plan_final.pasos)
+    assert "analizar_incidente" not in a.decisiones[-1]["herramientas_ofrecidas"]
+
+
+def test_plan_bloqueado_detiene_sin_pedir_al_modelo_que_lo_declare_exitoso(entorno):
+    servicio, _, _ = entorno
+    servicio.consultar_ticket = Mock(return_value=ResultadoHerramienta(estado="error", codigo="ERROR_HERRAMIENTA", mensaje="No disponible"))
+    llm = modelo(llamada("consultar_ticket", ticket_id=TICKET), AIMessage(content="Todo completado"))
+    a = AgenteEP2(servicio, llm=llm)
+    r = a.responder(SOLICITUD)
+    assert r.estado == "error" and len(llm.entradas) == 1
+    assert a.decisiones[-1]["estado_oferta"] == "plan_bloqueado"
+    assert a.decisiones[-1]["codigo"] == "PLAN_BLOQUEADO"
+    assert not a.decisiones[-1]["modelo_respondio"] and not a.decisiones[-1]["herramientas_ofrecidas"]
+
+
+def test_opciones_de_enlace_no_imponen_parametros_incompatibles():
+    from src.ep2.agente import _opciones_enlace
+    class ModeloSinOpciones:
+        def bind_tools(self, herramientas):
+            raise AssertionError("La consulta de firma no debe enlazar")
+    assert _opciones_enlace(ModeloSinOpciones(), True) == {}
+    llm = modelo(AIMessage(content="OK"))
+    assert _opciones_enlace(llm, False) == {"parallel_tool_calls": False}
+    assert _opciones_enlace(llm, True) == {"parallel_tool_calls": False, "tool_choice": "required"}
+
+
+def test_flexible_usuario_final_solo_recibe_sla_y_procedimiento(entorno):
+    _, memoria, ruta = entorno
+    servicio = HerramientasEP2(ContextoEjecucion(usuario_id="publico", sesion_id="s", perfil="usuario_final"),
+                               memoria.almacen, ConectorITSM(ruta))
+    llm = modelo(llamada("consultar_sla", prioridad="P2"), AIMessage(content="SLA consultado"))
+    a = AgenteEP2(servicio, llm=llm)
+    assert a.responder("Consulta SLA P2.").estado == "ok"
+    assert a.decisiones[0]["herramientas_ofrecidas"] == ["consultar_sla", "buscar_procedimiento"]
+    assert a.decisiones[1]["herramientas_ofrecidas"] == ["buscar_procedimiento"]
+    assert all("tool_choice" not in opciones for _, opciones in llm.enlaces)
+
+
+def test_resultado_cambia_prioridad_y_la_siguiente_oferta_usa_el_plan_actual(entorno):
+    a, llm = agente_para_impacto(entorno,
+        llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
+        llamada("analizar_incidente", ticket_id=TICKET), llamada("buscar_procedimiento", consulta="VPN"), nota_prematura())
+    _, _, ruta = entorno
+    analizar_original = a.servicio.analizar_incidente
+    def analizar(entrada):
+        with closing(sqlite3.connect(ruta)) as c, c:
+            c.execute("UPDATE tickets SET prioridad='P1' WHERE id=?", (TICKET,))
+        return analizar_original(entrada)
+    a.servicio.analizar_incidente = analizar
+    assert a.responder(IMPACTO).estado == "requiere_confirmacion"
+    assert a.decisiones[2]["plan_antes"]["prioridad_registrada"] == "P2"
+    assert a.decisiones[3]["plan_antes"]["prioridad_registrada"] == "P1"
+    assert a.decisiones[3]["plan_antes"]["prioridad_propuesta"] is None
+    assert a.decisiones[3]["herramientas_ofrecidas"] == ["buscar_procedimiento"]
+    assert "prioridad registrada: P1" in llm.entradas[3][-1].content
+    assert sum(nombres == ["consultar_sla"] for nombres, _ in llm.enlaces) == 1
+    verificar_cero_escrituras(a.servicio)
