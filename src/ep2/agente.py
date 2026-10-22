@@ -15,11 +15,12 @@ from langchain_core.agents import AgentFinish
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import StructuredTool
 
 from src import config, guardrails
 from src.ep2.configuracion import ConfiguracionAgente, crear_llm_ep2
+from src.ep2.contexto import proyectar_contexto
 from src.ep2.contratos import (
     ConsultaProcedimiento, ConsultaSLA, ConsultaTicket, DecisionConfirmacion,
     ProponerNota, RegistrarNota, RespuestaAgenteEP2, ResultadoHerramienta,
@@ -158,10 +159,11 @@ class _ModeloPlanificado:
     AgentExecutor conserva las seis implementaciones y sus controles finales.
     """
 
-    def __init__(self, llm, planificador: Planificador, iniciar=None, recibir=None, *, perfil="agente"):
+    def __init__(self, llm, planificador: Planificador, iniciar=None, recibir=None, *, perfil="agente", proyectar=None):
         self.llm, self.planificador = llm, planificador
         self.iniciar, self.recibir = iniciar, recibir
         self.perfil = perfil
+        self.proyectar = proyectar
 
     def bind_tools(self, herramientas):
         def invocar(mensajes, config):
@@ -173,7 +175,12 @@ class _ModeloPlanificado:
                              eleccion=opciones.get("tool_choice", "auto") if permitidas else "none")
             if estado in ("sin_permisos", "plan_bloqueado"):
                 raise _PlanNoEjecutable("PERMISO_REQUERIDO" if estado == "sin_permisos" else "PLAN_BLOQUEADO")
-            if permitidas and not p.es_flexible:
+            if self.proyectar:
+                entrada = mensajes.to_messages()
+                correccion = entrada[-1].content if entrada and isinstance(entrada[-1], SystemMessage) else None
+                mensajes = self.proyectar([h.name for h in permitidas], estado, correccion)
+            elif permitidas and not p.es_flexible:
+                # Ruta histórica conservada para los controles diagnósticos del evaluador.
                 nombres = ", ".join(h.name for h in permitidas)
                 control = (f"CONTROL DEL SERVIDOR PARA ESTA DECISIÓN: invoca exactamente una de estas herramientas: {nombres}. "
                            "Las demás verificaciones aún no están habilitadas o ya se completaron. "
@@ -471,7 +478,6 @@ class AgenteEP2:
             return RespuestaAgenteEP2(estado="denegado", texto=veredicto.mensaje)
         try:
             self._estado_memoria = self.memoria.recuperar()
-            mensajes_memoria = self.memoria.mensajes(self._estado_memoria)
             self._planificador = Planificador(consulta, anterior=self._estado_memoria.plan,
                                              ticket_activo=self._estado_memoria.ticket_activo)
             anterior = self._estado_memoria.plan
@@ -492,14 +498,18 @@ class AgenteEP2:
         try:
             llm = self._llm if self._llm is not None else crear_llm_ep2(self.opciones)
             prompt = ChatPromptTemplate.from_messages([
-                ("system", SISTEMA_EP2), MessagesPlaceholder("memoria"),
-                ("system", "{plan}"),
                 ("human", "{input}"), MessagesPlaceholder("agent_scratchpad"),
             ])
-            agente = (RunnablePassthrough.assign(plan=lambda _: self._planificador.contexto())
-                      | create_tool_calling_agent(_ModeloPlanificado(llm, self._planificador,
+            def proyectar(habilitadas, estado, correccion):
+                return proyectar_contexto(self._planificador, consulta=consulta,
+                    memoria=self._estado_memoria, observaciones=self._observaciones,
+                    habilitadas=habilitadas, estado_oferta=estado,
+                    perfil=self.servicio.contexto.perfil, correccion=correccion)
+
+            agente = (create_tool_calling_agent(_ModeloPlanificado(llm, self._planificador,
                                                                     self._iniciar_decision, self._recibir_decision,
-                                                                    perfil=self.servicio.contexto.perfil), self.herramientas, prompt,
+                                                                    perfil=self.servicio.contexto.perfil,
+                                                                    proyectar=proyectar), self.herramientas, prompt,
                                                  message_formatter=_formatear_observaciones)
                       | RunnableLambda(self._validar_decision))
             ejecutor = AgentExecutor(
@@ -508,7 +518,7 @@ class AgenteEP2:
                 handle_parsing_errors=self._corregir_decision,
                 verbose=False,
             )
-            salida = ejecutor.invoke({"input": guardrails.enmascarar_texto(consulta), "memoria": mensajes_memoria})
+            salida = ejecutor.invoke({"input": guardrails.enmascarar_texto(consulta)})
         except Exception as error:
             if isinstance(error, _PlanNoEjecutable):
                 estado = "denegado" if error.codigo == "PERMISO_REQUERIDO" else "error"

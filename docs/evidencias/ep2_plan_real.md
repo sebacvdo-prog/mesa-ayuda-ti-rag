@@ -1,5 +1,9 @@
 # Evidencia real — Etapa 4: plan adaptativo
 
+> **Registro histórico del 15 de octubre de 2026.** Los estados pendientes y
+> cifras de este documento corresponden a esa fecha. El cierre técnico posterior
+> con 584 pruebas y 15/15 reales está en [la evidencia del 22 de octubre](ep2_etapa4_cierre_tecnico.md).
+
 Fecha de ejecución: **15 de octubre de 2026**. Base estable:
 `8affe89f2b996dad326a8eba9dd531552c2dd431`, rama `master`, árbol inicialmente limpio.
 Esta evidencia corresponde a desarrollo y comprobación técnica de Etapa 4;

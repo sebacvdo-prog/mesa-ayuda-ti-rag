@@ -1,6 +1,6 @@
 # Asistente RAG para Mesa de Ayuda TI — Aconcagua Logística SpA
 
-> **EP1 · ISY0101 Ingeniería de Soluciones con IA — Duoc UC**
+> **EP1 y EP2 · ISY0101 Ingeniería de Soluciones con IA — Duoc UC**
 
 Asistente conversacional con **Retrieval-Augmented Generation (RAG)** que apoya a los agentes de Nivel 1 de la mesa de ayuda de TI de Aconcagua Logística SpA, una empresa chilena de transporte y distribución con 450 colaboradores, 5 sucursales y un centro de distribución.
 
@@ -44,13 +44,19 @@ reales. La CLI muestra plan inicial, observaciones, cambios y resultado final.
 Un nuevo reporte de impacto reabre verificaciones y separa prioridad registrada
 de propuesta. `POSPONER` conserva una nota pendiente sin escribirla; al reabrir
 se necesita una nueva vista previa y confirmación. Etapa 5 queda pendiente.
-La Etapa 4 pasa 308 pruebas automáticas; su validación real completa está
-pendiente por cuota diaria de Groq (última corrida real: **11/15 verificaciones**).
-Los intentos parciales están documentados
-en la evidencia, sin presentarlos como una demostración integral aprobada.
+La **Etapa 4 queda cerrada técnicamente** con **584 pruebas automatizadas** y una
+evaluación integral real aprobada **15/15 en una misma ejecución**, el 22 de
+octubre de 2026: inicial, impacto y reanudar; **10 solicitudes HTTP 200** y
+**18.137 tokens informados por Groq**. Se verificaron memoria/plan entre procesos,
+dependencias, confirmación humana, cero escrituras de negocio e ITSM intacto.
+La proyección por paso reduce el contexto enviado sin reducir la persistencia.
+El HTTP 400 histórico no se reprodujo en esta ejecución; su causa histórica no
+quedó demostrada. Los ensayos aislados y los intentos parciales anteriores se
+conservan como antecedentes, separados de esta aceptación integral.
 
 Ver [planificación y ejecución EP2 actual](docs/ep2_etapa4.md),
-[evidencia del plan adaptativo](docs/evidencias/ep2_plan_real.md),
+[evidencia sanitizada del cierre 15/15](docs/evidencias/ep2_etapa4_cierre_tecnico.md),
+[antecedentes históricos del plan adaptativo](docs/evidencias/ep2_plan_real.md),
 [memoria persistente](docs/ep2_etapa3.md),
 [arquitectura de herramientas](docs/ep2_etapa2.md),
 [controles transaccionales de Etapa 1](docs/ep2_etapa1.md) y
@@ -58,7 +64,7 @@ Ver [planificación y ejecución EP2 actual](docs/ep2_etapa4.md),
 
 ---
 
-## Arquitectura
+## Arquitectura EP1
 
 ```mermaid
 flowchart TD
@@ -290,10 +296,10 @@ mesa-ayuda-ti-rag/
 1. **Cuota diaria limitada.** Groq ofrece 100.000 tokens/día y Gemini 1.000 peticiones de embeddings. Una evaluación completa de 20 preguntas puede consumir una porción significativa de la cuota. Se implementa backoff exponencial ante HTTP 429 y caché de embeddings en disco.
 2. **Datos ficticios.** Los RUT, correos, IP y tickets son simulados. Los RUT usan números del tramo 30.000.000+ (no asignado en Chile) con dígito verificador válido.
 3. **Sin conexión a plataformas reales.** La base de datos SQLite reemplaza al ITSM y la CMDB; no se conecta a ServiceNow, Jira ni ningún sistema productivo.
-4. **Modelo no ejecuta acciones.** El asistente no cierra tickets, no resetea contraseñas ni modifica el directorio. Solo consulta y responde.
+4. **Alcance de acciones.** EP1 solo consulta y responde: no cierra tickets, restablece contraseñas ni modifica el directorio. EP2 incorpora herramientas de lectura y propuestas de notas; una nota solo se registra mediante confirmación humana explícita en SQLite EP2.
 5. **Enrutador por heurística de palabras clave.** La clasificación interna/externa/mixta es deliberadamente simple. Una clasificación equivocada solo cambia el filtro de fuente; `mixta` nunca deja fuera documentos.
 6. **Idioma fijo.** El corpus, los prompts y las interfaces están en español de Chile. No se soporta multiidioma.
-7. **Memoria en proceso.** El historial de sesión vive en memoria y no se persiste. Al reiniciar la aplicación se pierde la conversación.
+7. **Memoria.** En EP1 el historial vive en el proceso y se pierde al reiniciar. EP2 persiste memoria y plan en SQLite por usuario, sesión y perfil, sin restaurar autorizaciones de escritura.
 8. **LangSmith opcional.** La trazabilidad con LangSmith está disponible pero no es obligatoria. El sistema funciona igual sin ella.
 
 ---

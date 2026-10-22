@@ -495,10 +495,11 @@ def test_instrumentacion_cli_real_posponer_memoria_y_diez_peticiones_simuladas(t
     assert all(p.get("tool_choice") == "required" and p.get("parallel_tool_calls") is False
                for p in peticiones if p.get("tools"))
     assert all("tool_choice" not in p for p in peticiones if not p.get("tools"))
-    # El resultado de ticket sigue en el historial cuando solo se ofrece SLA.
-    assert any(m.get("role") == "assistant" and any(c["function"]["name"] == "consultar_ticket"
-               for c in m.get("tool_calls", [])) for m in peticiones[1]["messages"])
-    assert any(m.get("role") == "tool" for m in peticiones[1]["messages"])
+    # El resultado sigue como observación fechada; no se reenvía el scratchpad.
+    vista = json.loads(peticiones[1]["messages"][-1]["content"])
+    assert any(o["herramienta"] == "consultar_ticket" and o["datos"]["prioridad"] == "P2"
+               for o in vista["observaciones_turno"])
+    assert [m["role"] for m in peticiones[1]["messages"]] == ["system", "user"]
     assert fases[0]["decisiones"][-1]["estado_oferta"] == "plan_completado"
     assert fases[2]["decisiones"][0]["estado_oferta"] == "solo_estado"
     confirmar.assert_not_called()
@@ -906,3 +907,591 @@ def test_integral_400_guarda_diagnostico_sanitizado_y_preserva_historicos(integr
     assert all(x not in json.dumps(intento) for x in ("persona@", "razonamiento_privado", "gsk_privado"))
     assert intento["pasos"][0]["notas"] == intento["pasos"][0]["auditoria"] == 0
     confirmar.assert_not_called()
+
+
+@pytest.fixture(params=(False, True), ids=("required", "explicito"))
+def seleccion_explicita(request):
+    return request.param
+
+
+@pytest.fixture(params=((False, False, False), (True, False, False), (True, True, False), (True, False, True)),
+                ids=("required", "explicito", "minimo", "plan"))
+def variante(request):
+    return request.param
+
+
+def argumentos_diagnostico(seleccion_explicita=False, contexto_minimo=False, contexto_plan=False):
+    return (["--diagnostico-impacto"] + (["--tool-choice-explicito"] if seleccion_explicita else [])
+            + (["--contexto-minimo"] if contexto_minimo else []) + (["--contexto-plan"] if contexto_plan else []))
+
+
+def payload_diagnostico(seleccion_explicita=False):
+    return {"model": "openai/gpt-oss-20b", "messages": [{"role": "user", "content": "ficticio"}],
+            "tools": [{"type": "function", "function": {"name": "consultar_ticket", "parameters": {"type": "object"}}}],
+            "tool_choice": {"type": "function", "function": {"name": "consultar_ticket"}} if seleccion_explicita else "required",
+            "parallel_tool_calls": False, "max_completion_tokens": 2000, "stream": False}
+
+
+def test_transporte_diagnostico_no_permite_segunda_solicitud_aunque_limite_archivo_se_amplie(control, seleccion_explicita):
+    consumo = control(max_solicitudes=50)
+    dato = consumo.leer(); dato["fase_activa"] = "impacto"; evaluador.guardar_json(consumo.ruta, dato)
+    enviar = Mock(return_value=httpx.Response(200, json={}))
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo, seleccion_explicita=seleccion_explicita)
+    with httpx.Client(transport=transporte) as cliente:
+        cliente.post("https://api.groq.com/openai/v1/chat/completions", json=payload_diagnostico(seleccion_explicita))
+        with pytest.raises(evaluador.DetencionEvaluacion, match="MAX_SOLICITUDES"):
+            cliente.post("https://api.groq.com/openai/v1/chat/completions", json=payload_diagnostico(seleccion_explicita))
+    assert enviar.call_count == 1 and len(consumo.leer()["solicitudes"]) == 1
+
+
+@pytest.mark.parametrize("campo,valor", [("model", "otro"), ("tool_choice", "auto"),
+    ("parallel_tool_calls", True), ("max_completion_tokens", 2001), ("stream", True), ("tools", [])])
+def test_transporte_diagnostico_rechaza_cambios_del_ensayo_antes_de_enviar(control, campo, valor, seleccion_explicita):
+    consumo = control()
+    dato = consumo.leer(); dato["fase_activa"] = "impacto"; evaluador.guardar_json(consumo.ruta, dato)
+    enviar = Mock()
+    payload = payload_diagnostico(seleccion_explicita); payload[campo] = valor
+    with httpx.Client(transport=evaluador.TransporteDiagnostico(
+            httpx.MockTransport(enviar), consumo, seleccion_explicita=seleccion_explicita)) as cliente:
+        with pytest.raises(evaluador.DetencionEvaluacion, match="SOLICITUD_DIAGNOSTICA_INVALIDA"):
+            cliente.post("https://api.groq.com/openai/v1/chat/completions", json=payload)
+    enviar.assert_not_called()
+    assert not consumo.leer()["solicitudes"]
+
+
+def test_transporte_diagnostico_serializa_intentos_concurrentes(control, seleccion_explicita):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    consumo = control(max_solicitudes=50)
+    dato = consumo.leer(); dato["fase_activa"] = "impacto"; evaluador.guardar_json(consumo.ruta, dato)
+    enviar = Mock(return_value=httpx.Response(200, json={}))
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo, seleccion_explicita=seleccion_explicita)
+    barrera = Barrier(2)
+    def intentar():
+        barrera.wait(timeout=10)
+        with httpx.Client(transport=transporte) as cliente:
+            try:
+                cliente.post("https://api.groq.com/openai/v1/chat/completions", json=payload_diagnostico(seleccion_explicita))
+                return "enviada"
+            except evaluador.DetencionEvaluacion:
+                return "bloqueada"
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(lambda _: intentar(), range(2))) == ["bloqueada", "enviada"]
+    assert enviar.call_count == 1
+
+
+@pytest.mark.parametrize("url", ["http://api.groq.com/openai/v1/chat/completions",
+    "https://otro.invalid/openai/v1/chat/completions", "https://api.groq.com/openai/v1/models"])
+def test_transporte_diagnostico_no_envia_a_otro_destino(control, url):
+    consumo = control()
+    enviar = Mock()
+    with httpx.Client(transport=evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo)) as cliente:
+        with pytest.raises(evaluador.DetencionEvaluacion, match="SOLICITUD_DIAGNOSTICA_INVALIDA"):
+            cliente.post(url, json=payload_diagnostico())
+    enviar.assert_not_called()
+
+
+@pytest.fixture()
+def diagnostico(tmp_path, monkeypatch):
+    from langchain_openai import ChatOpenAI
+    from src.ep2 import agente, configuracion, herramientas
+    from src.retriever import ConectorITSM, RecuperadorVectorial
+
+    monkeypatch.setattr(evaluador.config, "DIR_CACHE", tmp_path / ".cache")
+    itsm = tmp_path / "itsm-original.db"; itsm.write_bytes(b"ITSM original protegido")
+    storage = tmp_path / "storage"; (storage / "ep2").mkdir(parents=True)
+    original = storage / "ep2" / "agent.db"; original.write_bytes(b"EP2 original protegido")
+    monkeypatch.setattr(evaluador.config, "RUTA_BD", itsm)
+    monkeypatch.setattr(evaluador.config, "DIR_ALMACENAMIENTO", storage)
+    prohibido = Mock(side_effect=AssertionError("No debe ejecutar agentes, herramientas ni conectores"))
+    monkeypatch.setattr(agente, "AgentExecutor", prohibido)
+    monkeypatch.setattr(agente.AgenteEP2, "responder", prohibido)
+    for nombre in ("consultar_ticket", "consultar_sla", "consultar_activo", "consultar_notas",
+                   "buscar_procedimiento", "analizar_incidente", "preparar_nota", "confirmar_nota"):
+        monkeypatch.setattr(herramientas.HerramientasEP2, nombre, prohibido)
+    monkeypatch.setattr(ConectorITSM, "__init__", prohibido)
+    monkeypatch.setattr(RecuperadorVectorial, "__init__", prohibido)
+    modelos, peticiones = [], []
+    def fabricar(opciones):
+        assert opciones.modelo == "openai/gpt-oss-20b" and opciones.timeout_llm == 30
+        llm = ChatOpenAI(model=opciones.modelo, api_key="falsa", base_url="https://api.groq.com/openai/v1",
+                         max_retries=3, temperature=0.2)
+        modelos.append(llm)
+        return llm
+    monkeypatch.setattr(configuracion, "crear_llm_ep2", fabricar)
+    def simular(mensaje=None, status=200, fallo=None, error=None, cabeceras=None):
+        def enviar(request):
+            peticiones.append(json.loads(request.content))
+            assert request.url.host == "api.groq.com"
+            assert all(t == 30 for t in request.extensions["timeout"].values())
+            if fallo: raise fallo
+            return httpx.Response(status, headers=cabeceras, json=error if error is not None else {
+                "id": "ficticio", "object": "chat.completion", "model": "openai/gpt-oss-20b", "created": 1,
+                "choices": [{"index": 0, "message": mensaje or mensaje_herramienta(
+                    "consultar_ticket", ticket_id="INC-2026-0411"), "finish_reason": "tool_calls"}],
+                "usage": {"prompt_tokens": 123, "completion_tokens": 20, "total_tokens": 143}})
+        monkeypatch.setattr(evaluador.httpx, "HTTPTransport", lambda **kwargs: httpx.MockTransport(enviar))
+    return simular, modelos, peticiones, prohibido, itsm, original
+
+
+def evidencia_diagnostico(seleccion_explicita=False, contexto_minimo=False, contexto_plan=False):
+    nombre = ("ep2_diagnostico_impacto_plan.json" if contexto_plan else "ep2_diagnostico_impacto_minimo.json" if contexto_minimo else
+              "ep2_diagnostico_impacto_explicito.json" if seleccion_explicita else "ep2_diagnostico_impacto.json")
+    return json.loads((evaluador.config.DIR_CACHE / nombre).read_text(encoding="utf-8"))["intentos"][-1]
+
+
+def test_diagnostico_una_decision_valida_no_ejecuta_nada_y_conserva_originales(diagnostico, monkeypatch, variante):
+    seleccion_explicita, contexto_minimo, contexto_plan = variante
+    simular, modelos, peticiones, prohibido, itsm, original = diagnostico
+    monkeypatch.setenv("EP2_LLM_MODEL", "modelo_que_no_debe_usarse")
+    monkeypatch.setenv("EP2_MAX_ITERATIONS", "0")
+    simular()
+    assert evaluador.main(argumentos_diagnostico(*variante)) == 0
+    intento = evidencia_diagnostico(*variante)
+    assert intento["resultado"] == "DECISION_VALIDA_SIN_EJECUTAR"
+    assert intento["cantidad_solicitudes"] == len(peticiones) == 1
+    assert intento["notas"] == intento["auditoria"] == intento["herramientas_ejecutadas"] == 0
+    assert intento["datos_originales_intactos"] and modelos[0].root_client.max_retries == 0
+    assert itsm.read_bytes() == b"ITSM original protegido" and original.read_bytes() == b"EP2 original protegido"
+    if contexto_minimo:
+        assert intento["plan_inicial"] is None and intento["origen_sesion"] == "control_minimo_sin_memoria_v1"
+    else:
+        assert intento["plan_inicial"]["revision"] == 12
+        if contexto_plan:
+            assert intento["origen_sesion"] == "control_minimo_con_plan_ficticio_v1"
+    payload = peticiones[0]
+    eleccion = {"type": "function", "function": {"name": "consultar_ticket"}} if seleccion_explicita else "required"
+    assert payload["tool_choice"] == eleccion and payload["parallel_tool_calls"] is False
+    assert intento["variante"] == ("minimo_con_plan" if contexto_plan else "contexto_minimo" if contexto_minimo else "funcion_explicita" if seleccion_explicita else "required")
+    meta = intento["solicitudes"][0]["solicitud"]
+    assert meta["tool_choice"] == ("funcion" if seleccion_explicita else "required")
+    assert meta["funcion_elegida"] == ("consultar_ticket" if seleccion_explicita else None)
+    assert payload["model"] == "openai/gpt-oss-20b"
+    assert payload.get("max_completion_tokens", payload.get("max_tokens")) == 2000
+    assert [t["function"]["name"] for t in payload["tools"]] == ["consultar_ticket"]
+    assert [m["role"] for m in payload["messages"]] == (["system", "system", "user"] if contexto_plan else ["system", "user"] if contexto_minimo else
+        ["system", "system", "user", "assistant", "system", "user", "system"])
+    assert not any(m.get("tool_calls") for m in payload["messages"])
+    assert not (evaluador.config.DIR_CACHE / "ep2_plan_controlado.json").exists()
+    assert not list(evaluador.config.DIR_CACHE.glob("ep2-diagnostico-*"))
+    prohibido.assert_not_called()
+
+
+@pytest.mark.parametrize("status,categoria,motivo", [
+    (400, "HERRAMIENTA_REQUERIDA_AUSENTE", "ERROR_HTTP"), (429, "NO_CLASIFICADO", "HTTP_429"),
+    (500, "NO_CLASIFICADO", "ERROR_HTTP"), (302, None, None)])
+def test_diagnostico_detiene_errores_y_no_sigue_redirecciones(diagnostico, status, categoria, motivo, capsys, variante):
+    simular, modelos, peticiones, prohibido, _, _ = diagnostico
+    simular(status=status, error={"error": {"code": "tool_use_failed", "type": "invalid_request_error",
+        "message": "Tool choice is required, but model did not call a tool. gsk_privado persona@empresa.cl",
+        "failed_generation": "razonamiento_privado"}},
+        cabeceras={"location": "https://otro.invalid/gsk_privado", "authorization": "Bearer secreto"})
+    assert evaluador.main(argumentos_diagnostico(*variante)) == 1
+    intento = evidencia_diagnostico(*variante)
+    assert intento["cantidad_solicitudes"] == len(peticiones) == 1
+    assert intento["motivo_detencion"] == motivo
+    solicitud = intento["solicitudes"][0]
+    assert solicitud["http_status"] == status
+    if categoria: assert solicitud["diagnostico_proveedor"]["categoria"] == categoria
+    else: assert solicitud["diagnostico_proveedor"] is None
+    guardado = json.dumps(intento) + capsys.readouterr().out
+    assert all(s not in guardado for s in ("gsk_privado", "persona@", "razonamiento_privado", "Bearer", "otro.invalid"))
+    assert intento["notas"] == intento["auditoria"] == 0
+    assert modelos[0].root_client.max_retries == 0
+    prohibido.assert_not_called()
+
+
+@pytest.mark.parametrize("mensaje", [
+    {"role": "assistant", "content": "respuesta_libre_privada"},
+    mensaje_herramienta("analizar_incidente", ticket_id="INC-2026-0411"),
+    mensaje_herramienta("consultar_ticket", ticket_id="INC-2026-0411", secreto="gsk_privado"),
+    {"role": "assistant", "content": "", "tool_calls": mensaje_herramienta(
+        "consultar_ticket", ticket_id="INC-2026-0411")["tool_calls"] * 2},
+    {"role": "assistant", "content": "razonamiento_privado", "tool_calls": [{"id": "i", "type": "function",
+        "function": {"name": "consultar_ticket", "arguments": "{argumentos_privados"}}]},
+])
+def test_diagnostico_respuestas_invalidas_no_se_ejecutan_ni_se_serializan(diagnostico, mensaje, capsys, variante):
+    simular, _, peticiones, prohibido, _, _ = diagnostico
+    simular(mensaje)
+    assert evaluador.main(argumentos_diagnostico(*variante)) == 1
+    intento = evidencia_diagnostico(*variante)
+    assert intento["resultado"] == "RESPUESTA_NO_VALIDA" and not intento["respuesta"]["decision_valida"]
+    assert len(peticiones) == 1 and intento["notas"] == intento["auditoria"] == 0
+    assert all(s not in json.dumps(intento) + capsys.readouterr().out for s in (
+        "respuesta_libre_privada", "gsk_privado", "razonamiento_privado", "argumentos_privados"))
+    prohibido.assert_not_called()
+
+
+@pytest.mark.parametrize("fallo,codigo,motivo", [(httpx.ReadTimeout("gsk_privado"), 1, "ERROR_TRANSPORTE"),
+                                               (KeyboardInterrupt(), 130, "INTERRUMPIDO")])
+def test_diagnostico_timeout_interrupcion_no_reintentan(diagnostico, fallo, codigo, motivo, variante):
+    simular, _, peticiones, prohibido, _, _ = diagnostico
+    simular(fallo=fallo)
+    assert evaluador.main(argumentos_diagnostico(*variante)) == codigo
+    intento = evidencia_diagnostico(*variante)
+    assert len(peticiones) == 1 and intento["motivo_detencion"] == motivo
+    assert intento["solicitudes"][0]["origen"] == "estimacion"
+    assert intento["solicitudes"][0]["tokens_operativos"] > 0
+    assert "gsk_privado" not in json.dumps(intento)
+    prohibido.assert_not_called()
+
+
+def test_diagnostico_fixture_reproducible_y_evidencia_anterior_intacta(diagnostico, variante):
+    simular, _, peticiones, _, _, _ = diagnostico
+    evaluador.config.DIR_CACHE.mkdir()
+    historicos = [evaluador.config.DIR_CACHE / n for n in ("ep2_plan_real.json", "ep2_plan_controlado.json")]
+    for p in historicos: p.write_bytes(b"historico no modificar")
+    simular()
+    assert evaluador.main(argumentos_diagnostico(*variante)) == 0
+    assert evaluador.main(argumentos_diagnostico(*variante)) == 0
+    assert len(peticiones) == 2 and peticiones[0] == peticiones[1]
+    assert all(p.read_bytes() == b"historico no modificar" for p in historicos)
+    seleccion_explicita, contexto_minimo, contexto_plan = variante
+    nombre = ("ep2_diagnostico_impacto_plan.json" if contexto_plan else "ep2_diagnostico_impacto_minimo.json" if contexto_minimo else
+              "ep2_diagnostico_impacto_explicito.json" if seleccion_explicita else "ep2_diagnostico_impacto.json")
+    informe = json.loads((evaluador.config.DIR_CACHE / nombre).read_text())
+    assert len(informe["intentos"]) == 2 and all(i["cantidad_solicitudes"] == 1 for i in informe["intentos"])
+
+
+def test_diagnostico_no_emite_payloads_con_debug_ni_trazas_habilitadas(diagnostico, monkeypatch, caplog, capsys, variante):
+    import logging
+    from langchain_core.caches import InMemoryCache
+    from langchain_core.globals import get_debug, get_verbose, get_llm_cache, set_debug, set_verbose, set_llm_cache
+
+    simular, _, peticiones, _, _, _ = diagnostico
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    simular({"role": "assistant", "content": "cuerpo_privado_no_guardar"})
+    previo = logging.root.manager.disable
+    debug, verbose, cache = get_debug(), get_verbose(), get_llm_cache()
+    cache_prueba = InMemoryCache()
+    try:
+        set_debug(True)
+        set_verbose(True)
+        set_llm_cache(cache_prueba)
+        with caplog.at_level(logging.DEBUG, logger="openai"):
+            assert evaluador.diagnosticar_impacto(seleccion_explicita=variante[0], contexto_minimo=variante[1],
+                                                contexto_plan=variante[2]) == 1
+        assert get_debug() is True and get_verbose() is True
+        assert get_llm_cache() is cache_prueba and not cache_prueba._cache
+    finally:
+        set_debug(debug)
+        set_verbose(verbose)
+        set_llm_cache(cache)
+    assert logging.root.manager.disable == previo and len(peticiones) == 1
+    salida = caplog.text + capsys.readouterr().out + json.dumps(evidencia_diagnostico(*variante))
+    assert all(p not in salida for p in ("Request options:", "cuerpo_privado_no_guardar", evaluador.PREGUNTAS["impacto"]))
+
+
+@pytest.mark.parametrize("extra", [["--fase", "impacto"], ["--max-solicitudes", "2"],
+                                  ["--timeout-llm", "60"], ["--max-tokens-salida", "4000"]])
+def test_diagnostico_no_admite_sobrescribir_limites_ni_combinar_fases(monkeypatch, extra, variante):
+    enviar = Mock()
+    monkeypatch.setattr(evaluador, "diagnosticar_impacto", enviar)
+    with pytest.raises(SystemExit) as error:
+        evaluador.main([*argumentos_diagnostico(*variante), *extra])
+    assert error.value.code == 2
+    enviar.assert_not_called()
+
+
+@pytest.mark.parametrize("eleccion", ["required", "consultar_ticket", None,
+    {"type": "function", "function": {"name": "consultar_sla"}},
+    {"type": "function", "name": "consultar_ticket"},
+    {"type": "function", "function": {"name": "consultar_ticket", "extra": True}},
+    {"type": "function", "function": {"name": "consultar_ticket"}, "extra": True}])
+def test_diagnostico_explicito_exige_objeto_exacto_antes_de_enviar(control, eleccion):
+    consumo = control()
+    enviar = Mock()
+    payload = payload_diagnostico(True); payload["tool_choice"] = eleccion
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo, seleccion_explicita=True)
+    with httpx.Client(transport=transporte) as cliente:
+        with pytest.raises(evaluador.DetencionEvaluacion, match="SOLICITUD_DIAGNOSTICA_INVALIDA"):
+            cliente.post("https://api.groq.com/openai/v1/chat/completions", json=payload)
+    enviar.assert_not_called()
+    assert not consumo.leer()["solicitudes"]
+
+
+def test_diagnostico_explicito_solo_cambia_tool_choice_y_preserva_evidencia_original(diagnostico):
+    simular, _, peticiones, prohibido, _, _ = diagnostico
+    simular()
+    assert evaluador.main(["--diagnostico-impacto"]) == 0
+    original = evaluador.config.DIR_CACHE / "ep2_diagnostico_impacto.json"
+    anterior = original.read_bytes()
+    assert evaluador.main(["--diagnostico-impacto", "--tool-choice-explicito"]) == 0
+    assert original.read_bytes() == anterior
+    assert len(peticiones) == 2
+    primera, segunda = peticiones
+    assert primera["tool_choice"] == "required"
+    assert segunda["tool_choice"] == {"type": "function", "function": {"name": "consultar_ticket"}}
+    assert {k:v for k,v in primera.items() if k != "tool_choice"} == {
+        k:v for k,v in segunda.items() if k != "tool_choice"}
+    intento = evidencia_diagnostico(True)
+    assert intento["cantidad_solicitudes"] == 1 and intento["datos_originales_intactos"]
+    assert intento["notas"] == intento["auditoria"] == intento["herramientas_ejecutadas"] == 0
+    prohibido.assert_not_called()
+
+
+@pytest.mark.parametrize("args", [["--tool-choice-explicito"], ["--tool-choice-explicito", "--fase", "impacto"],
+    ["--diagnostico-impacto", "--tool-choice-explicito", "--tool-choice-explicito"]])
+def test_diagnostico_explicito_rechaza_cli_sin_modo_o_con_duplicados(monkeypatch, args):
+    ejecutar = Mock()
+    monkeypatch.setattr(evaluador, "diagnosticar_impacto", ejecutar)
+    monkeypatch.setattr(evaluador, "ejecutar_integral", ejecutar)
+    with pytest.raises(SystemExit) as error:
+        evaluador.main(args)
+    assert error.value.code == 2
+    ejecutar.assert_not_called()
+
+
+def test_diagnostico_contexto_minimo_solo_cambia_mensajes_y_conserva_historicos(diagnostico):
+    simular, _, peticiones, prohibido, _, _ = diagnostico
+    simular()
+    assert evaluador.main(argumentos_diagnostico()) == 0
+    assert evaluador.main(argumentos_diagnostico(True)) == 0
+    anteriores = {p:p.read_bytes() for p in evaluador.config.DIR_CACHE.glob('*.json')}
+    assert evaluador.main(argumentos_diagnostico(True, True)) == 0
+    assert all(p.read_bytes() == contenido for p,contenido in anteriores.items())
+    rica, minima = peticiones[1:]
+    assert {k:v for k,v in rica.items() if k != 'messages'} == {k:v for k,v in minima.items() if k != 'messages'}
+    assert len(rica['messages']) == 7 and len(minima['messages']) == 2
+    assert [m['role'] for m in minima['messages']] == ['system', 'user']
+    contexto = json.dumps(minima['messages'])
+    assert all(texto not in contexto for texto in ('MEMORIA EP2', 'CONTROL DEL SERVIDOR', 'analizar_incidente',
+        'registrar_nota_ticket', 'consultar_sla', 'buscar_procedimiento', 'propón', 'plan', 'SLA'))
+    assert minima['tool_choice'] == {'type':'function', 'function':{'name':'consultar_ticket'}}
+    assert [h['function']['name'] for h in minima['tools']] == ['consultar_ticket']
+    intento = evidencia_diagnostico(True, True)
+    assert intento['solicitudes'][0]['solicitud']['roles'] == ['system', 'user']
+    assert intento['plan_inicial'] is None
+    prohibido.assert_not_called()
+
+
+def test_diagnostico_contexto_minimo_no_lee_guarda_memoria_ni_planifica(diagnostico, monkeypatch):
+    from src.ep2 import agente, memoria, planificacion
+    simular, _, _, _, _, _ = diagnostico
+    prohibido = Mock(side_effect=AssertionError('El control no usa contexto de sesión ni plan'))
+    for nombre in ('recuperar', 'mensajes', 'observar', 'registrar_turno'):
+        monkeypatch.setattr(memoria.MemoriaEP2, nombre, prohibido)
+    monkeypatch.setattr(planificacion.Planificador, '__init__', prohibido)
+    monkeypatch.setattr(agente._ModeloPlanificado, 'bind_tools', prohibido)
+    monkeypatch.setattr(evaluador, 'preparar_impacto_diagnostico', prohibido)
+    simular()
+    assert evaluador.main(argumentos_diagnostico(True, True)) == 0
+    prohibido.assert_not_called()
+
+
+@pytest.mark.parametrize('extra', [True, False])
+def test_diagnostico_contexto_minimo_bloquea_contexto_no_autorizado(control, extra):
+    consumo = control()
+    enviar = Mock()
+    payload = payload_diagnostico(True)
+    payload['messages'] = [{'role':r, 'content':c} for r,c in evaluador.MENSAJES_CONTEXTO_MINIMO]
+    if extra:
+        payload['messages'].append({'role':'system', 'content':'MEMORIA EP2 gsk_privado'})
+    else:
+        payload['messages'][0]['content'] += ' analizar_incidente'
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo,
+                                                 seleccion_explicita=True, contexto_minimo=True)
+    with httpx.Client(transport=transporte) as cliente:
+        with pytest.raises(evaluador.DetencionEvaluacion, match='SOLICITUD_DIAGNOSTICA_INVALIDA'):
+            cliente.post('https://api.groq.com/openai/v1/chat/completions', json=payload)
+    enviar.assert_not_called()
+    assert not consumo.leer()['solicitudes'] and 'gsk_privado' not in consumo.ruta.read_text()
+
+
+def test_diagnostico_contexto_minimo_no_permite_segundo_envio_despues_de_400(control):
+    consumo = control(max_solicitudes=50)
+    dato = consumo.leer(); dato['fase_activa'] = 'impacto'; evaluador.guardar_json(consumo.ruta, dato)
+    enviar = Mock(return_value=httpx.Response(400, json={'error':{'code':'tool_use_failed'}}))
+    payload = payload_diagnostico(True)
+    payload['messages'] = [{'role':r, 'content':c} for r,c in evaluador.MENSAJES_CONTEXTO_MINIMO]
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo,
+                                                 seleccion_explicita=True, contexto_minimo=True)
+    with httpx.Client(transport=transporte) as cliente:
+        assert cliente.post('https://api.groq.com/openai/v1/chat/completions', json=payload).status_code == 400
+        with pytest.raises(evaluador.DetencionEvaluacion, match='MAX_SOLICITUDES'):
+            cliente.post('https://api.groq.com/openai/v1/chat/completions', json=payload)
+    assert enviar.call_count == 1 and len(consumo.leer()['solicitudes']) == 1
+
+
+@pytest.mark.parametrize('args', [['--contexto-minimo'], ['--diagnostico-impacto', '--contexto-minimo'],
+    ['--tool-choice-explicito', '--contexto-minimo'],
+    [*argumentos_diagnostico(True, True), '--contexto-minimo']])
+def test_diagnostico_contexto_minimo_cli_rechaza_combinaciones_incompletas(monkeypatch, args):
+    ejecutar = Mock()
+    monkeypatch.setattr(evaluador, 'diagnosticar_impacto', ejecutar)
+    monkeypatch.setattr(evaluador, 'ejecutar_integral', ejecutar)
+    with pytest.raises(SystemExit) as error:
+        evaluador.main(args)
+    assert error.value.code == 2
+    ejecutar.assert_not_called()
+
+
+def test_diagnostico_contexto_minimo_api_requiere_seleccion_explicita(diagnostico):
+    _, _, peticiones, prohibido, _, _ = diagnostico
+    with pytest.raises(ValueError, match='CONTEXTO_MINIMO_REQUIERE_SELECCION_EXPLICITA'):
+        evaluador.diagnosticar_impacto(contexto_minimo=True)
+    assert not peticiones and not evaluador.config.DIR_CACHE.exists()
+    prohibido.assert_not_called()
+
+
+def test_diagnostico_compara_inicio_e_impacto_sin_orden_invertido(tmp_path):
+    from langchain_core.messages import AIMessage
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from src.ep2.agente import AgenteEP2, SISTEMA_EP2, _ModeloPlanificado
+    from src.ep2.almacenamiento import AlmacenEP2
+    from src.ep2.contratos import ContextoEjecucion
+    from src.ep2.herramientas import HerramientasEP2
+    from src.ep2.memoria import EstadoMemoria, LimitesMemoria, MemoriaEP2
+    from src.ep2.planificacion import Planificador
+
+    class Capturador:
+        def bind_tools(self, herramientas, **opciones):
+            self.oferta, self.opciones = [h.name for h in herramientas], opciones
+            return self
+        def invoke(self, mensajes, config=None):
+            self.mensajes = mensajes.to_messages() if hasattr(mensajes, 'to_messages') else mensajes
+            return AIMessage(content='')
+
+    llm = Capturador()
+    almacen = AlmacenEP2(tmp_path/'inicial')
+    contexto = ContextoEjecucion(usuario_id='ficticio', sesion_id='inicial', perfil='agente')
+    memoria = MemoriaEP2(almacen, contexto, limites=LimitesMemoria())
+    servicio = HerramientasEP2(contexto, almacen, conector=evaluador._SinOperacionesDiagnostico())
+    agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=evaluador._SinOperacionesDiagnostico())
+    inicial = Planificador(evaluador.PREGUNTAS['inicial'])
+    prompt = ChatPromptTemplate.from_messages([('system', SISTEMA_EP2), MessagesPlaceholder('memoria'),
+        ('system', '{plan}'), ('human', '{input}'), MessagesPlaceholder('agent_scratchpad')])
+    mensajes = prompt.invoke({'memoria':memoria.mensajes(EstadoMemoria()), 'plan':inicial.contexto(),
+                             'input':evaluador.PREGUNTAS['inicial'], 'agent_scratchpad':[]})
+    _ModeloPlanificado(llm, inicial).bind_tools(agente.herramientas).invoke(mensajes)
+    assert [m.type for m in llm.mensajes] == ['system','system','system','human','system']
+    assert llm.oferta == ['consultar_ticket'] and llm.opciones['tool_choice'] == 'required'
+    assert not any(p.herramienta in ('analizar_incidente','registrar_nota_ticket') for p in inicial.plan.pasos)
+    modelo, mensajes, _, impacto = evaluador.preparar_impacto_diagnostico(tmp_path/'impacto', llm)
+    modelo.invoke(mensajes)
+    assert [m.type for m in llm.mensajes] == ['system','system','human','ai','system','human','system']
+    assert llm.oferta == ['consultar_ticket'] and llm.opciones['tool_choice'] == 'required'
+    datos = json.loads(impacto.contexto())
+    assert datos['disponibles'] == ['consultar_ticket'] and 'objetivo' not in datos['plan']
+    pasos = {p.herramienta:p for p in impacto.plan.pasos}
+    assert pasos['consultar_ticket'].estado == 'pendiente'
+    assert pasos['analizar_incidente'].dependencias == (pasos['consultar_ticket'].id, pasos['consultar_sla'].id)
+    hechos = json.loads(llm.mensajes[1].content.split('\n', 1)[1])['hechos']
+    assert hechos and any(h['clave'].startswith('ticket:') for h in hechos)
+    assert 'reconsulta ticket, SLA, analiza el incidente' in SISTEMA_EP2.replace('\n', ' ')
+    assert 'analizar_incidente' in llm.mensajes[4].content and 'registrar_nota_ticket' in llm.mensajes[4].content
+    assert 'No propongas notas' in evaluador.PREGUNTAS['inicial'] and 'propón una nota' in evaluador.PREGUNTAS['impacto']
+    assert 'consultar_ticket' in llm.mensajes[-1].content and 'Las demás verificaciones aún no están habilitadas' in llm.mensajes[-1].content
+
+
+def test_diagnostico_plan_solo_agrega_estado_identico_al_completo_y_conserva_historicos(diagnostico):
+    simular, _, peticiones, prohibido, _, _ = diagnostico
+    simular()
+    for flags in ((), (True,), (True, True)):
+        assert evaluador.main(argumentos_diagnostico(*flags)) == 0
+    anteriores = {p:p.read_bytes() for p in evaluador.config.DIR_CACHE.glob('*.json')}
+    assert evaluador.main(argumentos_diagnostico(True, False, True)) == 0
+    assert all(p.read_bytes() == contenido for p,contenido in anteriores.items())
+    completo, minimo, intermedio = peticiones[1:]
+    assert {k:v for k,v in minimo.items() if k != 'messages'} == {
+        k:v for k,v in intermedio.items() if k != 'messages'}
+    assert [m['role'] for m in intermedio['messages']] == ['system','system','user']
+    assert [intermedio['messages'][0],intermedio['messages'][2]] == minimo['messages']
+    assert intermedio['messages'][1] == completo['messages'][4]
+    contexto = json.dumps(intermedio['messages'])
+    assert 'MEMORIA EP2' not in contexto and 'CONTROL DEL SERVIDOR' not in contexto
+    assert evaluador.PREGUNTAS['impacto'] not in contexto
+    datos = json.loads(intermedio['messages'][1]['content'])
+    assert datos['disponibles'] == ['consultar_ticket']
+    pasos = {p['herramienta']:p for p in datos['plan']['pasos']}
+    assert pasos['analizar_incidente']['dependencias'] == [pasos['consultar_ticket']['id'],pasos['consultar_sla']['id']]
+    intento = evidencia_diagnostico(True, False, True)
+    assert intento['variante'] == 'minimo_con_plan' and intento['plan_inicial']['revision'] == 12
+    assert intento['cantidad_solicitudes'] == intento['respuesta']['cantidad_llamadas'] == 1
+    assert intento['notas'] == intento['auditoria'] == intento['herramientas_ejecutadas'] == 0
+    prohibido.assert_not_called()
+
+
+def test_diagnostico_plan_no_usa_memoria_historial_ni_adaptador_del_agente(diagnostico, monkeypatch):
+    from src.ep2 import agente, memoria
+    simular, _, _, _, _, _ = diagnostico
+    prohibido = Mock(side_effect=AssertionError('El control intermedio solo incorpora el estado del plan'))
+    for nombre in ('recuperar','mensajes','observar','registrar_turno'):
+        monkeypatch.setattr(memoria.MemoriaEP2, nombre, prohibido)
+    monkeypatch.setattr(agente._ModeloPlanificado, 'bind_tools', prohibido)
+    monkeypatch.setattr(evaluador, 'preparar_impacto_diagnostico', prohibido)
+    simular()
+    assert evaluador.main(argumentos_diagnostico(True, False, True)) == 0
+    prohibido.assert_not_called()
+
+
+@pytest.mark.parametrize('cambio', ['memoria', 'sin_plan', 'otro_estado'])
+def test_diagnostico_plan_bloquea_cambios_de_contexto_antes_del_envio(control, cambio):
+    consumo = control()
+    enviar = Mock()
+    payload = payload_diagnostico(True)
+    plan = evaluador._plan_impacto_diagnostico()
+    payload['messages'] = [{'role':r,'content':c} for r,c in evaluador._mensajes_contexto_plan(plan)]
+    if cambio == 'memoria':
+        payload['messages'].append({'role':'system','content':'gsk_privado memoria no autorizada'})
+    elif cambio == 'sin_plan':
+        payload['messages'].pop(1)
+    else:
+        datos = json.loads(payload['messages'][1]['content'])
+        datos['plan']['pasos'][0]['estado'] = 'completado'
+        payload['messages'][1]['content'] = json.dumps(datos)
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo,
+                                                 seleccion_explicita=True, contexto_plan=True)
+    with httpx.Client(transport=transporte) as cliente:
+        with pytest.raises(evaluador.DetencionEvaluacion, match='SOLICITUD_DIAGNOSTICA_INVALIDA'):
+            cliente.post('https://api.groq.com/openai/v1/chat/completions', json=payload)
+    enviar.assert_not_called()
+    assert not consumo.leer()['solicitudes'] and 'gsk_privado' not in consumo.ruta.read_text()
+
+
+def test_diagnostico_plan_un_envio_concurrente_aun_con_400(control):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    consumo = control(max_solicitudes=50)
+    dato = consumo.leer(); dato['fase_activa'] = 'impacto'; evaluador.guardar_json(consumo.ruta, dato)
+    enviar = Mock(return_value=httpx.Response(400, json={'error':{'code':'tool_use_failed'}}))
+    payload = payload_diagnostico(True)
+    payload['messages'] = [{'role':r,'content':c} for r,c in evaluador._mensajes_contexto_plan(evaluador._plan_impacto_diagnostico())]
+    transporte = evaluador.TransporteDiagnostico(httpx.MockTransport(enviar), consumo,
+                                                 seleccion_explicita=True, contexto_plan=True)
+    barrera = Barrier(2)
+    def intentar():
+        barrera.wait(timeout=10)
+        with httpx.Client(transport=transporte) as cliente:
+            try:
+                return cliente.post('https://api.groq.com/openai/v1/chat/completions', json=payload).status_code
+            except evaluador.DetencionEvaluacion:
+                return 0
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(lambda _: intentar(), range(2))) == [0,400]
+    assert enviar.call_count == 1 and len(consumo.leer()['solicitudes']) == 1
+
+
+@pytest.mark.parametrize('args', [['--contexto-plan'], ['--diagnostico-impacto','--contexto-plan'],
+    ['--tool-choice-explicito','--contexto-plan'],
+    [*argumentos_diagnostico(True, True), '--contexto-plan'],
+    [*argumentos_diagnostico(True, False, True), '--contexto-plan']])
+def test_diagnostico_plan_cli_rechaza_variantes_incompletas_o_combinadas(monkeypatch, args):
+    ejecutar = Mock()
+    monkeypatch.setattr(evaluador,'diagnosticar_impacto',ejecutar)
+    monkeypatch.setattr(evaluador,'ejecutar_integral',ejecutar)
+    with pytest.raises(SystemExit) as error:
+        evaluador.main(args)
+    assert error.value.code == 2
+    ejecutar.assert_not_called()
+
+
+@pytest.mark.parametrize('opciones,codigo', [({'contexto_plan':True},'CONTEXTO_PLAN_REQUIERE_SELECCION_EXPLICITA'),
+    ({'seleccion_explicita':True,'contexto_minimo':True,'contexto_plan':True},'CONTEXTOS_DIAGNOSTICOS_INCOMPATIBLES')])
+def test_diagnostico_plan_api_rechaza_variantes_invalidas_antes_de_preparar(diagnostico, opciones, codigo):
+    _, _, peticiones, prohibido, _, _ = diagnostico
+    with pytest.raises(ValueError, match=codigo):
+        evaluador.diagnosticar_impacto(**opciones)
+    assert not peticiones and not evaluador.config.DIR_CACHE.exists()
+    prohibido.assert_not_called()

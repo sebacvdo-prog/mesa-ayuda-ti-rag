@@ -2,6 +2,20 @@
 
 Esta carpeta contiene los registros de ejecución y resultados generados al ejecutar las pruebas del sistema de forma reproducible.
 
+## Cierre técnico EP2 — Etapa 4
+
+La evidencia vigente es [cierre técnico 15/15](ep2_etapa4_cierre_tecnico.md),
+derivada de la evaluación integral real del 22 de octubre de 2026: tres fases,
+10 respuestas HTTP 200, 18.137 tokens informados, cero escrituras de negocio e
+ITSM intacto. Distingue las **584 pruebas automatizadas con red bloqueada**, los
+ensayos aislados de contexto y la aceptación real completa de **15/15**.
+
+[ep2_plan_real.md](ep2_plan_real.md) conserva los intentos parciales del 15 de
+octubre; sus 308 pruebas y 11/15 describen ese estado histórico. Los registros
+EP1 listados a continuación se conservan y no representan el tamaño actual de
+la suite EP2. Regenerar una evaluación con proveedores requiere autorización
+separada y consume cuota.
+
 ## Archivos de Evidencia Generados
 
 1. **`seed_db_log.txt`**: Log de inicialización y población de la base de datos ITSM SQLite (`data/itsm.db`), validando la creación de 6 categorías, 4 SLAs, 12 usuarios, 20 activos y 40 tickets iniciales.

@@ -507,8 +507,8 @@ def test_modelo_recibe_subconjunto_y_ejecutor_conserva_registro(entorno):
     assert len(AgenteEP2(servicio).herramientas) == 6
     opciones = {"tool_choice": "required", "parallel_tool_calls": False}
     assert llm.enlaces == [(["consultar_ticket"], opciones), (["consultar_sla"], opciones)]
-    assert "CONTROL DEL SERVIDOR" in llm.entradas[0][-1].content
-    assert "herramientas: consultar_sla." in llm.entradas[1][-1].content
+    assert json.loads(llm.entradas[0][-1].content)["herramientas_habilitadas"] == ["consultar_ticket"]
+    assert json.loads(llm.entradas[1][-1].content)["herramientas_habilitadas"] == ["consultar_sla"]
 
 
 def test_seleccion_autonoma_entre_herramientas_con_igual_prioridad(entorno):
@@ -518,7 +518,7 @@ def test_seleccion_autonoma_entre_herramientas_con_igual_prioridad(entorno):
     assert r.estado == "ok"
     assert llm.enlaces[0] == (["consultar_sla", "consultar_activo"],
                              {"tool_choice": "required", "parallel_tool_calls": False})
-    assert "herramientas: consultar_sla, consultar_activo." in llm.entradas[0][-1].content
+    assert json.loads(llm.entradas[0][-1].content)["herramientas_habilitadas"] == ["consultar_sla", "consultar_activo"]
     assert [t.nombre for t in r.herramientas] == ["consultar_activo", "consultar_sla"]
 
 
@@ -814,6 +814,6 @@ def test_resultado_cambia_prioridad_y_la_siguiente_oferta_usa_el_plan_actual(ent
     assert a.decisiones[3]["plan_antes"]["prioridad_registrada"] == "P1"
     assert a.decisiones[3]["plan_antes"]["prioridad_propuesta"] is None
     assert a.decisiones[3]["herramientas_ofrecidas"] == ["buscar_procedimiento"]
-    assert "prioridad registrada: P1" in llm.entradas[3][-1].content
+    assert json.loads(llm.entradas[3][-1].content)["plan"]["prioridad_registrada"] == "P1"
     assert sum(nombres == ["consultar_sla"] for nombres, _ in llm.enlaces) == 1
     verificar_cero_escrituras(a.servicio)

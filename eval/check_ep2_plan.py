@@ -2,25 +2,28 @@
 
 python -m eval.check_ep2_plan
 Consume cuota. No confirma notas, no altera el ITSM ni reconstruye FAISS.
+--diagnostico-impacto: una sola decisión con sesión ficticia, sin ejecutar herramientas.
 """
 
 from __future__ import annotations
 
 import argparse
 import builtins
-from contextlib import ExitStack, redirect_stderr, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import hashlib
 import importlib.metadata
 import io
 import json
+import logging
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+from threading import Lock
 import time
 from unittest.mock import patch
 
@@ -37,7 +40,7 @@ PREGUNTAS = {
 HERRAMIENTAS = frozenset(("consultar_ticket", "consultar_sla", "consultar_activo",
                          "buscar_procedimiento", "analizar_incidente", "registrar_nota_ticket"))
 ESTADOS_PASO = frozenset(("pendiente", "en_ejecucion", "completado", "bloqueado", "cancelado"))
-FUENTES = ("src/ep2/agente.py", "src/ep2/planificacion.py", "src/ep2/memoria.py",
+FUENTES = ("src/ep2/agente.py", "src/ep2/contexto.py", "src/ep2/planificacion.py", "src/ep2/memoria.py",
            "src/ep2/contratos.py", "src/ep2/cli.py", "src/ep2/herramientas.py", __file__)
 LIMITACION_ESTIMACION = (
     "Estimacion operativa, no consumo real: bytes UTF-8 del payload mas 256 para entrada; "
@@ -294,6 +297,332 @@ class TransporteControlado(httpx.BaseTransport):
 
     def close(self) -> None:
         self.delegado.close()
+
+
+def _tool_choice_diagnostico(seleccion_explicita: bool):
+    return {"type": "function", "function": {"name": "consultar_ticket"}} if seleccion_explicita else "required"
+
+
+MENSAJES_CONTEXTO_MINIMO = (
+    ("system", "Devuelve exactamente una llamada a consultar_ticket para el identificador solicitado."),
+    ("user", "Consulta el ticket INC-2026-0411."),
+)
+
+
+def _resultados_iniciales_diagnostico():
+    from src.ep2.contratos import ResultadoHerramienta
+
+    return (
+        ("consultar_ticket", {"ticket_id": "INC-2026-0411"}, ResultadoHerramienta(
+            estado="ok", codigo="TICKET_CONSULTADO", mensaje="Dato ficticio de diagnóstico.",
+            datos={"id": "INC-2026-0411", "estado": "escalado", "prioridad": "P2",
+                   "nivel_atencion": 2, "categoria": "CAT-RED", "fecha_apertura": "2026-09-01"})),
+        ("consultar_sla", {"prioridad": "P2"}, ResultadoHerramienta(
+            estado="ok", codigo="SLA_CONSULTADO", mensaje="Dato ficticio de diagnóstico.",
+            datos={"prioridad": "P2", "primera_respuesta_min": 30, "resolucion_horas": 8,
+                   "tipo_reloj": "corridas", "descripcion": "Grupo de usuarios sin servicio."})),
+        ("buscar_procedimiento", {"consulta": "VPN FortiClient"}, ResultadoHerramienta(
+            estado="ok", codigo="PROCEDIMIENTO_RECUPERADO", mensaje="Referencia ficticia; sin recuperar documentos.",
+            datos={"fragmentos": [{"documento": "kb_conectividad_vpn.md", "titulo": "Procedimiento ficticio VPN",
+                                    "fecha": "2026-01-01", "puntaje": 0.9}]})),
+    )
+
+
+def _plan_impacto_diagnostico():
+    """Plan ficticio comparable al recuperado, sin leer ni guardar memoria de sesión."""
+    from uuid import UUID
+    from src.ep2 import planificacion
+    from src.ep2.contratos import PlanEjecucion
+
+    fecha = datetime(2026, 10, 20, tzinfo=timezone.utc)
+    with patch.object(planificacion, "_ahora", lambda: fecha), patch.object(
+            planificacion, "uuid4", lambda: UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")):
+        inicial = planificacion.Planificador(PREGUNTAS["inicial"])
+        for nombre, argumentos, resultado in _resultados_iniciales_diagnostico():
+            if inicial.preparar(nombre, argumentos) is not None:
+                raise RuntimeError("FIXTURE_DIAGNOSTICO_INVALIDO")
+            inicial.observar(nombre, resultado)
+        recuperado = PlanEjecucion.model_validate_json(inicial.plan.model_dump_json())
+        return planificacion.Planificador(PREGUNTAS["impacto"], anterior=recuperado,
+                                          ticket_activo=recuperado.ticket_id)
+
+
+def _mensajes_contexto_plan(plan):
+    return (MENSAJES_CONTEXTO_MINIMO[0], ("system", plan.contexto()), MENSAJES_CONTEXTO_MINIMO[1])
+
+
+class TransporteDiagnostico(TransporteControlado):
+    """Un solo intento de envío; valida también la solicitud serializada del SDK."""
+
+    def __init__(self, delegado: httpx.BaseTransport, consumo: Consumo, *, seleccion_explicita: bool = False,
+                 contexto_minimo: bool = False, contexto_plan: bool = False):
+        if contexto_minimo and contexto_plan:
+            raise ValueError("CONTEXTOS_DIAGNOSTICOS_INCOMPATIBLES")
+        if contexto_minimo and not seleccion_explicita:
+            raise ValueError("CONTEXTO_MINIMO_REQUIERE_SELECCION_EXPLICITA")
+        if contexto_plan and not seleccion_explicita:
+            raise ValueError("CONTEXTO_PLAN_REQUIERE_SELECCION_EXPLICITA")
+        super().__init__(delegado, consumo, "impacto")
+        self._tool_choice = _tool_choice_diagnostico(seleccion_explicita)
+        esperados = (_mensajes_contexto_plan(_plan_impacto_diagnostico()) if contexto_plan else
+                     MENSAJES_CONTEXTO_MINIMO if contexto_minimo else None)
+        self._mensajes_esperados = ([{"role": r, "content": c} for r, c in esperados]
+                                   if esperados is not None else None)
+        self._cerrojo = Lock()
+        self._utilizado = False
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        with self._cerrojo:
+            if self._utilizado:
+                raise DetencionEvaluacion("MAX_SOLICITUDES")
+            self._utilizado = True  # No se libera ni siquiera ante timeout/error.
+        dato, _ = _json_acotado(request.read())
+        meta = metadatos_solicitud(request.content)
+        herramientas = dato.get("tools") if dato else None
+        topes = [dato[k] for k in ("max_tokens", "max_completion_tokens") if dato and k in dato]
+        if not (request.method == "POST" and str(request.url) == "https://api.groq.com/openai/v1/chat/completions"
+                and dato and dato.get("model") == "openai/gpt-oss-20b"
+                and isinstance(herramientas, list) and len(herramientas) == 1
+                and meta["herramientas_ofrecidas"] == ["consultar_ticket"]
+                and dato.get("tool_choice") == self._tool_choice and meta["parallel_tool_calls"] is False
+                and topes and all(type(t) is int and t == 2000 for t in topes)
+                and (self._mensajes_esperados is None or dato.get("messages") == self._mensajes_esperados)
+                and dato.get("stream", False) is False):
+            self.consumo.detener("SOLICITUD_DIAGNOSTICA_INVALIDA")
+            raise DetencionEvaluacion("SOLICITUD_DIAGNOSTICA_INVALIDA")
+        return super().handle_request(request)
+
+
+class _SinOperacionesDiagnostico:
+    """Bloquea acceso accidental a conectores ITSM y al recuperador."""
+
+    def __getattr__(self, nombre):
+        raise RuntimeError("OPERACION_NO_PERMITIDA_EN_DIAGNOSTICO")
+
+
+class _SeleccionExplicitaDiagnostico:
+    """Adapta únicamente bind_tools del ensayo; conserva el control y prompt reales."""
+
+    def __init__(self, llm):
+        self.llm = llm
+
+    def bind_tools(self, herramientas, **opciones):
+        return self.llm.bind_tools(herramientas, **{**opciones, "tool_choice": _tool_choice_diagnostico(True)})
+
+
+def preparar_contexto_minimo(directorio: Path, llm):
+    """Control sin contexto de sesión; reutiliza el esquema real, nunca el ejecutor."""
+    from langchain_core.prompts import ChatPromptTemplate
+    from src.ep2.agente import AgenteEP2
+    from src.ep2.almacenamiento import AlmacenEP2
+    from src.ep2.contratos import ContextoEjecucion
+    from src.ep2.configuracion import ConfiguracionAgente
+    from src.ep2.herramientas import HerramientasEP2
+    from src.ep2.memoria import LimitesMemoria, MemoriaEP2
+
+    almacen = AlmacenEP2(directorio)
+    contexto = ContextoEjecucion(usuario_id="diagnostico_ficticio", sesion_id="minimo_v1", perfil="agente")
+    servicio = HerramientasEP2(contexto, almacen, conector=_SinOperacionesDiagnostico())
+    # Solo objeto de configuración del catálogo: no recuperar, incorporar ni guardar memoria.
+    memoria = MemoriaEP2(almacen, contexto, limites=LimitesMemoria())
+    agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=_SinOperacionesDiagnostico(),
+                       opciones=ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30))
+    herramientas = [h for h in agente.herramientas if h.name == "consultar_ticket"]
+    if len(herramientas) != 1:
+        raise RuntimeError("OFERTA_DIAGNOSTICA_INVALIDA")
+    modelo = llm.bind_tools(herramientas, tool_choice=_tool_choice_diagnostico(True), parallel_tool_calls=False)
+    mensajes = ChatPromptTemplate.from_messages(MENSAJES_CONTEXTO_MINIMO).invoke({})
+    return modelo, mensajes, almacen, None
+
+
+def preparar_contexto_plan(directorio: Path, llm):
+    """Añade solo el estado del plan real a los dos mensajes del control mínimo."""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    modelo, _, almacen, _ = preparar_contexto_minimo(directorio, llm)
+    plan = _plan_impacto_diagnostico()
+    # El JSON es un valor, no una plantilla: sus llaves no son variables de LangChain.
+    mensajes = ChatPromptTemplate.from_messages([
+        MENSAJES_CONTEXTO_MINIMO[0], ("system", "{estado_plan}"), MENSAJES_CONTEXTO_MINIMO[1],
+    ]).invoke({"estado_plan": plan.contexto()})
+    return modelo, mensajes, almacen, plan
+
+
+def preparar_impacto_diagnostico(directorio: Path, llm, *, seleccion_explicita: bool = False):
+    """Fixture local v1: memoria/plan reales, observaciones inventadas, cero herramientas."""
+    from uuid import UUID
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from src.ep2 import planificacion
+    from src.ep2.agente import AgenteEP2, SISTEMA_EP2, _ModeloPlanificado, _oferta_herramientas
+    from src.ep2.almacenamiento import AlmacenEP2
+    from src.ep2.contratos import ContextoEjecucion, RespuestaAgenteEP2
+    from src.ep2.herramientas import HerramientasEP2
+    from src.ep2.memoria import LimitesMemoria, MemoriaEP2
+    from src.ep2.configuracion import ConfiguracionAgente
+
+    fecha = datetime(2026, 10, 20, tzinfo=timezone.utc)
+    almacen = AlmacenEP2(directorio)
+    contexto = ContextoEjecucion(usuario_id="diagnostico_ficticio", sesion_id="impacto_v1", perfil="agente")
+    memoria = MemoriaEP2(almacen, contexto, limites=LimitesMemoria(), reloj=lambda: fecha)
+    resultados = _resultados_iniciales_diagnostico()
+    # Solo durante la construcción local del fixture; restaura los símbolos antes de enviar.
+    with patch.object(planificacion, "_ahora", lambda: fecha), patch.object(
+            planificacion, "uuid4", lambda: UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")):
+        inicial = planificacion.Planificador(PREGUNTAS["inicial"])
+        observaciones = []
+        for nombre, argumentos, resultado in resultados:
+            if inicial.preparar(nombre, argumentos) is not None:
+                raise RuntimeError("FIXTURE_DIAGNOSTICO_INVALIDO")
+            inicial.observar(nombre, resultado)  # No invoca ninguna herramienta.
+            observaciones.append(memoria.observar(nombre, resultado, "INC-2026-0411"))
+        memoria.registrar_turno(PREGUNTAS["inicial"], RespuestaAgenteEP2(
+            estado="ok", texto="Preparación ficticia local.", plan_final=inicial.plan),
+            observaciones, id_turno="diagnostico-inicial-v1")
+        estado = memoria.recuperar()
+        impacto = planificacion.Planificador(PREGUNTAS["impacto"], anterior=estado.plan,
+                                             ticket_activo=estado.ticket_activo)
+    servicio = HerramientasEP2(contexto, almacen, conector=_SinOperacionesDiagnostico())
+    agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=_SinOperacionesDiagnostico(),
+                       opciones=ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30))
+    ofrecidas, tipo = _oferta_herramientas(impacto, agente.herramientas, contexto.perfil)
+    if [h.name for h in ofrecidas] != ["consultar_ticket"] or tipo != "acciones_obligatorias":
+        raise RuntimeError("OFERTA_DIAGNOSTICA_INVALIDA")
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SISTEMA_EP2), MessagesPlaceholder("memoria"), ("system", "{plan}"),
+        ("human", "{input}"), MessagesPlaceholder("agent_scratchpad"),
+    ])
+    mensajes = prompt.invoke({"memoria": memoria.mensajes(estado), "plan": impacto.contexto(),
+                              "input": PREGUNTAS["impacto"], "agent_scratchpad": []})
+    # Solo Runnable del modelo: no crear AgentExecutor, parser ni despachador de herramientas.
+    enlace = _SeleccionExplicitaDiagnostico(llm) if seleccion_explicita else llm
+    modelo = _ModeloPlanificado(enlace, impacto, perfil=contexto.perfil).bind_tools(agente.herramientas)
+    return modelo, mensajes, almacen, impacto
+
+
+def respuesta_diagnostica(respuesta) -> dict:
+    """Inspecciona la decisión sin ejecutar ni conservar argumentos/contenido."""
+    from src.ep2.contratos import ConsultaTicket
+
+    llamadas = respuesta.tool_calls or []
+    invalidas = respuesta.invalid_tool_calls or []
+    valida = False
+    if len(llamadas) == 1 and not invalidas and llamadas[0].get("name") == "consultar_ticket":
+        try:
+            valida = ConsultaTicket.model_validate(llamadas[0]["args"]).ticket_id == "INC-2026-0411"
+        except (ValueError, TypeError, KeyError):
+            pass
+    return {"cantidad_llamadas": len(llamadas), "cantidad_invalidas": len(invalidas),
+            "seleccion": ["consultar_ticket" if c.get("name") == "consultar_ticket" else "fuera_registro"
+                          for c in llamadas], "decision_valida": valida,
+            "finish_reason": _valor_permitido(respuesta.response_metadata.get("finish_reason"),
+                                               ("stop", "tool_calls", "length", "content_filter"))}
+
+
+@contextmanager
+def _sin_logs_diagnostico():
+    # El SDK puede registrar el payload con DEBUG; no permitirlo ni con configuración externa.
+    from langchain_core.globals import get_debug, get_verbose, set_debug, set_verbose
+
+    anterior = logging.root.manager.disable
+    debug, verbose = get_debug(), get_verbose()
+    logging.disable(sys.maxsize)
+    set_debug(False)
+    set_verbose(False)
+    try:
+        yield
+    finally:
+        set_debug(debug)
+        set_verbose(verbose)
+        logging.disable(anterior)
+
+
+def diagnosticar_impacto(*, seleccion_explicita: bool = False, contexto_minimo: bool = False,
+                       contexto_plan: bool = False) -> int:
+    """Una sola solicitud real, solo tras autorización; nunca ejecuta la integral."""
+    from langsmith import tracing_context
+    from src.ep2.configuracion import ConfiguracionAgente, crear_llm_ep2
+
+    if contexto_minimo and contexto_plan:
+        raise ValueError("CONTEXTOS_DIAGNOSTICOS_INCOMPATIBLES")
+    if contexto_minimo and not seleccion_explicita:
+        raise ValueError("CONTEXTO_MINIMO_REQUIERE_SELECCION_EXPLICITA")
+    if contexto_plan and not seleccion_explicita:
+        raise ValueError("CONTEXTO_PLAN_REQUIERE_SELECCION_EXPLICITA")
+    limites = Limites(max_solicitudes=1, presupuesto_tokens=20_000, intervalo_llm_segundos=0, pausa_segundos=0)
+    config.DIR_CACHE.mkdir(parents=True, exist_ok=True)
+    salida = config.DIR_CACHE / ("ep2_diagnostico_impacto_plan.json" if contexto_plan else
+                                "ep2_diagnostico_impacto_minimo.json" if contexto_minimo else
+                                "ep2_diagnostico_impacto_explicito.json" if seleccion_explicita
+                                else "ep2_diagnostico_impacto.json")
+    informe = json.loads(salida.read_text(encoding="utf-8")) if salida.exists() else {"intentos": []}
+    if not isinstance(informe, dict) or not isinstance(informe.get("intentos"), list):
+        raise ValueError("EVIDENCIA_DIAGNOSTICA_INVALIDA")
+    protegidas = (config.RUTA_BD, config.DIR_ALMACENAMIENTO / "ep2" / "agent.db")
+    huellas = lambda: [hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None for p in protegidas]
+    antes = huellas()
+    intento = {"fecha_utc": datetime.now(timezone.utc).isoformat(), "modo": "primera_decision_impacto",
+               "variante": "minimo_con_plan" if contexto_plan else "contexto_minimo" if contexto_minimo else "funcion_explicita" if seleccion_explicita else "required",
+               "origen_sesion": "control_minimo_con_plan_ficticio_v1" if contexto_plan else "control_minimo_sin_memoria_v1" if contexto_minimo else "fixture_ficticio_v1_no_replay_historico",
+               "limites": asdict(limites),
+               "modelo": "openai/gpt-oss-20b", "resultado": "ERROR_PREPARACION", "respuesta": None,
+               "herramientas_ejecutadas": 0,
+               "versiones": {p: importlib.metadata.version(p) for p in ("langchain", "langchain-core", "langchain-openai")},
+               "fuentes_sha256": {Path(p).name if Path(p).is_absolute() else p:
+                    hashlib.sha256((config.RAIZ_PROYECTO / p).read_bytes()).hexdigest() for p in FUENTES}}
+    with tempfile.TemporaryDirectory(dir=config.DIR_CACHE, prefix="ep2-diagnostico-") as temporal:
+        directorio = Path(temporal)
+        consumo = Consumo(directorio / "control.json")
+        guardar_json(consumo.ruta, {"limites": asdict(limites), "fase_activa": "impacto",
+                                    "solicitudes": [], "motivo_detencion": None})
+        almacen = None
+        try:
+            with ExitStack() as recursos, tracing_context(enabled=False), _sin_logs_diagnostico():
+                opciones = ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30)
+                llm = crear_llm_ep2(opciones)
+                recursos.callback(llm.root_client.close)
+                transporte = TransporteDiagnostico(httpx.HTTPTransport(retries=0), consumo,
+                                                   seleccion_explicita=seleccion_explicita, contexto_minimo=contexto_minimo,
+                                                   contexto_plan=contexto_plan)
+                cliente = recursos.enter_context(httpx.Client(transport=transporte, timeout=30,
+                                                              follow_redirects=False, trust_env=False))
+                llm.root_client = llm.root_client.with_options(http_client=cliente, max_retries=0, timeout=30)
+                llm.client = llm.root_client.chat.completions
+                llm.max_retries, llm.max_tokens, llm.streaming = 0, 2000, False
+                llm.cache, llm.verbose, llm.callbacks = False, False, []
+                intento["temperatura"] = llm.temperature
+                if contexto_plan:
+                    modelo, mensajes, almacen, plan = preparar_contexto_plan(directorio, llm)
+                elif contexto_minimo:
+                    modelo, mensajes, almacen, plan = preparar_contexto_minimo(directorio, llm)
+                else:
+                    modelo, mensajes, almacen, plan = preparar_impacto_diagnostico(
+                        directorio, llm, seleccion_explicita=seleccion_explicita)
+                intento["plan_inicial"] = plan_publico(plan.plan.model_dump(mode="json")) if plan is not None else None
+                respuesta = modelo.invoke(mensajes)  # Única invocación, sin ejecución de herramientas.
+                intento["respuesta"] = respuesta_diagnostica(respuesta)
+                intento["resultado"] = ("DECISION_VALIDA_SIN_EJECUTAR" if intento["respuesta"]["decision_valida"]
+                                         else "RESPUESTA_NO_VALIDA")
+        except KeyboardInterrupt:
+            consumo.detener("INTERRUMPIDO")
+            intento["resultado"] = "INTERRUMPIDO"
+        except Exception:
+            intento["resultado"] = consumo.leer()["motivo_detencion"] or "ERROR_RESPUESTA_O_PREPARACION"
+        finally:
+            dato = consumo.leer()
+            intento.update(solicitudes=dato["solicitudes"], motivo_detencion=dato["motivo_detencion"],
+                           cantidad_solicitudes=len(dato["solicitudes"]))
+            if almacen is not None:
+                with almacen._conexion() as c:
+                    intento["notas"] = c.execute("SELECT COUNT(*) FROM notas").fetchone()[0]
+                    intento["auditoria"] = c.execute("SELECT COUNT(*) FROM auditoria").fetchone()[0]
+            intactas = huellas() == antes
+            intento["datos_originales_intactos"] = intactas
+            if not intactas or intento.get("notas", 0) or intento.get("auditoria", 0):
+                intento["resultado"] = "INTEGRIDAD_NO_VERIFICADA"
+    informe["intentos"].append(intento)
+    guardar_json(salida, informe)
+    print(json.dumps({k: intento[k] for k in ("resultado", "cantidad_solicitudes", "datos_originales_intactos")}))
+    return 0 if intento["resultado"] == "DECISION_VALIDA_SIN_EJECUTAR" else 130 if intento["resultado"] == "INTERRUMPIDO" else 1
 
 
 def _codigo(valor) -> str | None:
@@ -637,6 +966,14 @@ def ejecutar_integral(limites: Limites) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--diagnostico-impacto", action="store_true",
+                        help="Una sola solicitud real de diagnóstico de impacto; requiere autorización y consume cuota.")
+    parser.add_argument("--tool-choice-explicito", action="store_true",
+                        help="Solo con --diagnostico-impacto: selecciona explícitamente consultar_ticket.")
+    parser.add_argument("--contexto-minimo", action="store_true",
+                        help="Solo con diagnóstico y selección explícita: sin memoria ni contexto de fases posteriores.")
+    parser.add_argument("--contexto-plan", action="store_true",
+                        help="Solo con diagnóstico y selección explícita: añade el estado del plan al control mínimo.")
     parser.add_argument("--fase", choices=tuple(PREGUNTAS), help=argparse.SUPPRESS)
     parser.add_argument("--directorio", type=Path, help=argparse.SUPPRESS)
     ayudas = {
@@ -651,7 +988,23 @@ def main(argv: list[str] | None = None) -> int:
     }
     for campo, valor in asdict(Limites()).items():
         parser.add_argument("--" + campo.replace("_", "-"), type=int, default=valor, help=ayudas[campo])
-    args = parser.parse_args(argv)
+    argumentos = sys.argv[1:] if argv is None else argv
+    args = parser.parse_args(argumentos)
+    if args.tool_choice_explicito and not args.diagnostico_impacto:
+        parser.error("--tool-choice-explicito requiere --diagnostico-impacto.")
+    if args.contexto_minimo and not (args.diagnostico_impacto and args.tool_choice_explicito):
+        parser.error("--contexto-minimo requiere --diagnostico-impacto y --tool-choice-explicito.")
+    if args.contexto_plan and not (args.diagnostico_impacto and args.tool_choice_explicito):
+        parser.error("--contexto-plan requiere --diagnostico-impacto y --tool-choice-explicito.")
+    if args.contexto_plan and args.contexto_minimo:
+        parser.error("--contexto-plan y --contexto-minimo son variantes excluyentes.")
+    permitidos = ["--diagnostico-impacto"] + (["--tool-choice-explicito"] if args.tool_choice_explicito else [])
+    if args.contexto_minimo:
+        permitidos.append("--contexto-minimo")
+    if args.contexto_plan:
+        permitidos.append("--contexto-plan")
+    if args.diagnostico_impacto and (len(argumentos) != len(permitidos) or set(argumentos) != set(permitidos)):
+        parser.error("El diagnóstico tiene límites fijos; solo admite selección explícita y una variante de contexto.")
     limites = Limites(**{k: getattr(args, k) for k in asdict(Limites())})
     if any(getattr(limites, k) <= 0 for k in asdict(limites) if k not in ("intervalo_llm_segundos", "pausa_segundos")) \
             or limites.intervalo_llm_segundos < 0 or limites.pausa_segundos < 0 \
@@ -660,6 +1013,21 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("Limites invalidos: valores positivos, fase <=300 s, LLM <=60 s y proceso > fase.")
     os.environ.update(LANGCHAIN_TRACING_V2="false", LANGSMITH_TRACING="false",
                       HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
+    if args.diagnostico_impacto:
+        try:
+            if args.contexto_plan:
+                return diagnosticar_impacto(seleccion_explicita=True, contexto_plan=True)
+            if args.contexto_minimo:
+                return diagnosticar_impacto(seleccion_explicita=True, contexto_minimo=True)
+            if args.tool_choice_explicito:
+                return diagnosticar_impacto(seleccion_explicita=True)
+            return diagnosticar_impacto()
+        except KeyboardInterrupt:
+            print(json.dumps({"resultado": "INTERRUMPIDO"}))
+            return 130
+        except Exception:
+            print(json.dumps({"resultado": "ERROR_EVIDENCIA_O_PREPARACION"}))
+            return 1
     if args.fase:
         if not args.directorio or args.directorio.resolve().parent != config.DIR_CACHE.resolve() \
                 or not args.directorio.name.startswith("ep2-plan-real-"):

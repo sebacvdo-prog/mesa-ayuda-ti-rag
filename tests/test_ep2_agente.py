@@ -69,8 +69,9 @@ def test_ciclo_selecciona_ticket_y_sla_segun_observaciones(entorno):
     respuesta = AgenteEP2(servicio, llm=llm).responder("Consulta ticket INC-2026-0411 y su SLA.")
     assert respuesta.estado == "ok"
     assert [t.nombre for t in respuesta.herramientas] == ["consultar_ticket", "consultar_sla"]
-    observaciones = [m for turno in llm.entradas for m in turno if isinstance(m, ToolMessage)]
-    assert any(json.loads(m.content)["datos"].get("prioridad") == "P2" for m in observaciones)
+    observaciones = [o for turno in llm.entradas
+                     for o in json.loads(turno[-1].content)["observaciones_turno"]]
+    assert any(o["datos"].get("prioridad") == "P2" for o in observaciones)
     assert "itsm:sla:P2" in respuesta.fuentes
     assert respuesta.escrituras_realizadas == 0
 
@@ -95,7 +96,8 @@ def test_activo_y_analisis_funcionan_con_itsm_real(entorno, nombre):
     respuesta = AgenteEP2(servicio, llm=llm).responder("Analiza el caso del ticket INC-2026-0411.")
     assert respuesta.estado == "ok"
     assert respuesta.herramientas[0].estado == "ok"
-    observacion = json.loads(next(m.content for m in llm.entradas[-1] if isinstance(m, ToolMessage)))
+    observacion = next(o for o in json.loads(llm.entradas[-1][-1].content)["observaciones_turno"]
+                       if o["herramienta"] == nombre)
     if nombre == "consultar_activo":
         assert not {"hostname", "ip_asignada", "usuario"} & observacion["datos"].keys()
     else:
