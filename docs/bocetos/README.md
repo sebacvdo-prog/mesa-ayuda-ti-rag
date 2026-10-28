@@ -1,4 +1,11 @@
-# Bocetos de la Interfaz
+# Bocetos de las interfaces EP1 y EP2
+
+Los esquemas de CLI y Streamlit que siguen son bocetos históricos de EP1;
+sus valores ilustrativos no son métricas ni capturas nuevas de ejecución.
+Los [bocetos EP2](ep2.md) muestran consulta, replanificación, continuidad y
+confirmación humana en la CLI independiente, con referencias al código y a la
+evidencia existente. La [arquitectura EP2](../arquitectura.md#arquitectura-ep2)
+describe sus componentes.
 
 ## CLI (`src/cli.py`)
 
@@ -91,4 +98,3 @@ Fuente: [KB-MOV-03 · Terminales móviles · 2026-06-15]
 - **Botón de reinicio** en el panel lateral: borra la memoria de sesión sin recargar la aplicación.
 - **Caché del asistente** con `@st.cache_resource`: el índice FAISS y el modelo se cargan una vez por proceso.
 - **Ejemplos sugeridos**: 5 consultas de ejemplo para orientar al evaluador.
-```

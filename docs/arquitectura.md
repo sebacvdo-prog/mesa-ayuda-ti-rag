@@ -1,4 +1,9 @@
-# Arquitectura del Asistente RAG — Mesa de Ayuda TI
+# Arquitectura del asistente — EP1 y EP2
+
+La descripción inicial conserva la arquitectura y los parámetros históricos de
+EP1. La [arquitectura EP2](#arquitectura-ep2) al final incorpora el planificador,
+la proyección por decisión, la memoria persistente y la confirmación humana.
+Para instalación y configuración vigente, consultar el [README](../README.md).
 
 ## Visión general
 
@@ -154,3 +159,82 @@ sequenceDiagram
 3. **Respuesta determinista sin contexto.** Si no hay fragmentos ni datos del ITSM, la respuesta es literal y no se gasta una llamada al modelo.
 4. **Caché de embeddings.** Un SQLite local guarda los vectores ya calculados, keyed por SHA-256 del modelo, el tipo y el texto. Cambiar de modelo invalida la caché automáticamente.
 5. **Backoff exponencial.** Los reintentos ante HTTP 429 siguen `espera_base^n + jitter`, con un techo de 60 segundos. Solo se reintenta error de cuota; cualquier otro error se propaga de inmediato.
+
+## Arquitectura EP2
+
+Este diagrama describe las llamadas y fronteras implementadas en el cierre de
+Etapa 4. No representa una ejecución nueva ni una conexión con un ITSM productivo.
+CLI y Streamlit EP1 permanecen independientes de la CLI EP2.
+
+```mermaid
+flowchart TD
+    U["Persona"] --> CLI["CLI EP2: contexto y guardarraíles"]
+    CLI --> M["MemoriaEP2: recuperar contexto"]
+    M <--> DB[("SQLite EP2: agent.db<br/>memoria, plan, notas y auditoría")]
+    M --> P["Planificador adaptativo<br/>prioridades, dependencias y estados"]
+    P --> E["LangChain AgentExecutor<br/>un ciclo por consulta"]
+    E --> O["Oferta habilitada por el servidor"]
+    P --> O
+    O --> C["Proyección de contexto por decisión<br/>solo lectura"]
+    M --> C
+    C --> L["Groq: selección de una herramienta<br/>o respuesta permitida por el plan"]
+    L --> V["Validación local de selección<br/>argumentos, permisos y plan"]
+    V --> R["Herramientas de consulta y triage"]
+    R --> I[("ITSM SQLite: itsm.db<br/>mode=ro, SQL parametrizado")]
+    R --> F["RecuperadorVectorial: filtros y umbral"]
+    F --> FA[("FAISS: corpus documental")]
+    R --> OB["Observación: estado, código y procedencia"]
+    OB --> P
+    OB --> E
+    V --> N["registrar_nota_ticket<br/>solo propuesta y vista previa"]
+    N -->|"verificar ticket en lectura"| I
+    N -->|"return_direct: pausa"| S["Respuesta y persistencia de memoria/plan"]
+    E --> S
+    S --> M
+    S --> H["Campo humano independiente del LLM"]
+    H -->|"POSPONER: conservar pendiente"| CLI
+    H -->|"CONFIRMAR o cancelar"| API["API humana confirmar_nota<br/>permiso, huella y vigencia"]
+    API -->|"revalidar ticket en lectura"| I
+    API -->|"solo confirmación válida: nota y auditoría atómicas"| DB
+    API -->|"recibo mínimo, actualización posterior"| M
+```
+
+Las flechas representan dependencias de datos y llamadas. El `AgentExecutor`
+invoca el adaptador en cada decisión; la oferta y la proyección no son otros
+agentes ni ejecutan herramientas. Antes de la siguiente decisión, los resultados
+actualizan el plan. Los pasos bloqueados, completados o sin dependencias satisfechas
+no se ofrecen como acciones pendientes. En modo `solo_estado` o plan completado
+se permite responder sin herramientas; un plan bloqueado o sin permisos detiene
+el ciclo desde el servidor.
+
+### Correspondencia con los módulos
+
+| Componente | Implementación verificable |
+|---|---|
+| CLI y contexto | [cli.py](../src/ep2/cli.py): `main()`, `mostrar_trazabilidad()` y `resolver_confirmaciones()`; identidad local sin autenticación empresarial. |
+| Ejecutor y oferta | [agente.py](../src/ep2/agente.py): `AgenteEP2._responder()`, `_ModeloPlanificado.bind_tools()`, `_oferta_herramientas()` y `_validar_decision()`. |
+| Planificador | [planificacion.py](../src/ep2/planificacion.py): `Planificador`, `disponibles()`, `preparar()`, `observar()` y `_replantear_impacto()`; grafo validado mediante [contratos.py](../src/ep2/contratos.py). |
+| Proyección | [contexto.py](../src/ep2/contexto.py): `proyectar_contexto()` construye reglas y datos pertinentes; distingue hechos históricos, observaciones actuales y solicitudes no verificadas. |
+| Memoria persistente | [memoria.py](../src/ep2/memoria.py): `recuperar()` y `registrar_turno()`; clave usuario/sesión/perfil y snapshot acotado que incluye el plan. |
+| Consultas y triage | [herramientas.py](../src/ep2/herramientas.py): `consultar_ticket`, `consultar_sla`, `consultar_activo`, `buscar_procedimiento` y `analizar_incidente`. Este último aplica reglas sobre ITSM/SLA; no comprueba infraestructura. |
+| RAG e ITSM | [retriever.py](../src/retriever.py): `RecuperadorVectorial` y `ConectorITSM`. FAISS contiene documentos; los tickets se consultan por SQL. |
+| Propuesta y escritura | `registrar_nota_ticket` llama a `HerramientasEP2.preparar_nota()`. `confirmar_nota()` está fuera del registro del LLM; [almacenamiento.py](../src/ep2/almacenamiento.py) confirma nota y auditoría juntas. |
+
+La proyección no modifica memoria ni autoriza operaciones. El estado canónico
+permanece en SQLite dentro de los límites de retención; no se restaura el
+scratchpad ni una autorización de escritura. Una nueva vista previa y una
+decisión humana válida son necesarias después de reiniciar. `POSPONER` no invoca
+la API de confirmación: la propuesta ya persistida continúa pendiente.
+
+La confirmación registra únicamente en SQLite EP2, no modifica el ITSM ni su
+prioridad. Nota y auditoría forman una transacción; actualizar después su recibo
+en memoria es otra operación. Los datos y perfiles del proyecto son simulados.
+
+Las [584 pruebas automatizadas y el cierre real 15/15](evidencias/ep2_etapa4_cierre_tecnico.md)
+son evidencias distintas. La integral real verificó propuesta pospuesta y cero
+escrituras de negocio; las confirmaciones efectivas se comprobaron con pruebas
+automatizadas en bases temporales. No se acreditan escalabilidad bajo carga ni
+fidelidad semántica universal.
+
+Ver [bocetos de los flujos EP2](bocetos/ep2.md),
+[detalle de Etapa 4](ep2_etapa4.md) y [trazabilidad IE1–IE10](trazabilidad_ep2.md).

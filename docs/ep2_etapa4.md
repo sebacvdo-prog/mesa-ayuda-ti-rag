@@ -41,19 +41,41 @@ necesita una nueva vista previa: no se recuperan tokens de autorización.
 ```mermaid
 flowchart TD
     U[Solicitud humana] --> M[Recuperar memoria del usuario, sesión y perfil]
+    M <--> DB[(SQLite EP2: memoria y plan)]
     M --> P[Planificador: crear o adaptar plan validado]
     P --> C[Mostrar plan inicial]
-    C --> E[Único AgentExecutor + Groq]
-    E --> V[Validar selección, dependencias y prioridades]
+    C --> E[Único LangChain AgentExecutor]
+    E --> OF[Oferta por permisos, prioridad y dependencias]
+    P --> OF
+    OF --> CT[Proyección de contexto por decisión]
+    M --> CT
+    CT --> L[Groq: selección o respuesta]
+    L --> V[Validar selección, argumentos y plan]
     V --> T[Una de las seis herramientas existentes]
+    T --> R[Consultas y triage]
+    R --> I[(ITSM SQLite: solo lectura)]
+    R --> FA[(Recuperación FAISS)]
+    T --> PR[Propuesta de nota: verificar y pausar]
+    PR --> I
+    PR --> F
     T --> O[Observación real: estado, código, fecha, procedencia]
     O --> P
-    P --> E
+    O --> E
     E --> F[Respuesta o pausa de escritura]
     F --> S[Persistir plan y memoria en la misma transacción]
+    S --> DB
     F --> H[Interfaz humana: confirmar, cancelar o posponer]
-    H --> N[Servicio EP2: nota y auditoría autorizadas]
+    H -->|CONFIRMAR o cancelar| N[API humana confirmar_nota: fuera del LLM]
+    H -->|POSPONER: conservar pendiente| M
+    N -->|solo confirmación válida| DB
+    N -->|revalidar ticket en lectura| I
 ```
+
+La [arquitectura EP2](arquitectura.md#arquitectura-ep2) detalla las fronteras y
+su correspondencia con el código. `POSPONER` no llama a `confirmar_nota` ni
+añade una nota: conserva el pendiente ya persistido. La escritura confirmada
+de nota y auditoría se realiza en una transacción distinta de la actualización
+posterior de su recibo en memoria. Ver también los [bocetos EP2](bocetos/ep2.md).
 
 El nuevo controlador `Planificador` no llama al LLM ni ejecuta herramientas.
 Declara un plan inicial con plantillas pequeñas basadas en las verificaciones
