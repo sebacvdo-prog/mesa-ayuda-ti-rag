@@ -24,14 +24,29 @@ def _ahora() -> datetime:
 
 
 def multiples_usuarios(texto: str) -> bool:
-    t = _normalizar(texto)
-    patron = r"(?:varios|multiples|muchos|\d+) usuarios (?:estan |estan siendo |han sido )?afectados"
-    for m in re.finditer(patron, t):
-        if re.search(r"\b(?:no|ningun|sin)\b.{0,15}$", t[:m.start()]):
-            continue
-        numero = re.match(r"\d+", m.group())
-        if not numero or int(numero.group()) >= 2:
-            return True
+    """Reporte plural explícito, no criterio de prioridad ni impacto verificado.
+
+    Permite ubicación y otros modificadores entre usuarios y afectación. Limita
+    la relación a la misma oración y rechaza negaciones o supuestos explícitos.
+    """
+    for oracion in re.split(r"[.!?;\n]+", _normalizar(texto)):
+        oracion = re.sub(r"\s+", " ", oracion)
+        for m in re.finditer(r"\b(varios|multiples|muchos|\d+) usuarios\b", oracion):
+            cantidad = m.group(1)
+            if cantidad.isdigit() and int(cantidad) < 2:
+                continue
+            antes = re.split(r",|\bpero\b", oracion[:m.start()])[-1][-100:]
+            despues = re.split(r",|\bpero\b", oracion[m.end():], maxsplit=1)[0][:120]
+            if re.search(r"\b(?:si|en caso de que|supongamos|hipoteticamente)\b", antes):
+                continue
+            if re.search(r"\b(?:sin|ningun|no (?:hay|existen|son|tenemos|se reportan|afecta|afectan|esta afectando))\b.{0,40}$", antes):
+                continue
+            if re.search(r"\b(?:podrian|estarian|estuvieran)\b|\bno (?:estan|han sido|se encuentran|siguen|reportan|presentan|tienen|sufren)\b", despues):
+                continue
+            efecto = re.search(r"\bafectados\b|\b(?:reportan|presentan|tienen|sufren)\b.{0,50}\b(?:problemas?|fallas?)\b", despues)
+            efecto_previo = re.search(r"\b(?:afecta|afectan|esta afectando) (?:a )?$", antes)
+            if efecto or efecto_previo:
+                return True
     return False
 
 
@@ -50,10 +65,27 @@ def _previstas(consulta: str) -> list[str]:
         herramientas.append("analizar_incidente")
     if "procedimiento" in t:
         herramientas.append("buscar_procedimiento")
-    nota = re.search(r"\b(?:propon|registrar|registra|anade|anadir|escribe)\b.{0,45}\bnota\b", t)
-    if nota and not re.search(r"\b(?:no|sin)\s+$", t[:nota.start()]):
+    if _solicita_preparar_nota(t):
         herramientas.append("registrar_nota_ticket")
     return herramientas
+
+
+def _solicita_preparar_nota(texto_normalizado: str) -> bool:
+    """Detecta una propuesta actual; nunca interpreta permiso para escribir.
+
+    'Sin registrarla' limita la escritura, no niega 'prepara una nota'. Una
+    negación de preparar/proponer sí excluye la herramienta de vista previa.
+    """
+    verbos = ("propon|proponer|proponme|prepara|preparar|prepares|preparame|prepararme|"
+              "redacta|redactar|redactes|redactame|redactarme|registrar|registra|anade|anadir|escribe")
+    patron = rf"\b(?:{verbos})\b[^.!?;\n]{{0,80}}?\bnota\b"
+    for nota in re.finditer(patron, texto_normalizado):
+        antes = re.split(r"[,.;!?\n]|\bpero\b", texto_normalizado[:nota.start()])[-1]
+        negacion = r"\b(?:sin|no(?:\s+(?:quiero|necesito|deseo|debes|debe)(?:\s+que)?)?)(?:\s+(?:me|nos|la))?\s*$"
+        negacion_coordinada = r"\b(?:no|sin)\b[^,.;!?]{0,80}\bni(?:\s+(?:me|nos|la))?\s*$"
+        if not re.search(negacion, antes) and not re.search(negacion_coordinada, antes):
+            return True
+    return False
 
 
 class Planificador:

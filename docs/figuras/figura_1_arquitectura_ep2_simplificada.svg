@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="170mm" height="100.34722mm" viewBox="0 0 1440 850" role="img" aria-labelledby="titulo descripcion">
+<title id="titulo">Figura 1. Arquitectura EP2 simplificada</title>
+<desc id="descripcion">Arquitectura contrastada con docs/arquitectura.md y src/ep2. La CLI conecta al usuario con un agente LangChain/Groq, con planificador adaptativo y memoria SQLite EP2. Las herramientas consultan ITSM y FAISS en lectura. Una propuesta de nota requiere una decisión humana fuera del LLM. Solo una confirmación válida registra nota y auditoría en agent.db; no modifica ITSM. Las flechas representan dependencias y flujos simplificados, no llamadas adicionales al modelo.</desc>
+<defs><marker id="flecha" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="10" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#000"/></marker></defs>
+<rect width="1440" height="850" fill="#fff"/>
+<text x="720" y="38" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" fill="#000">Figura 1. Arquitectura EP2 simplificada</text>
+<text x="720" y="78" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Sistema local de apoyo a la mesa de ayuda</text>
+<path d="M145,235 L205,235" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)" marker-start="url(#flecha)"/>
+<path d="M395,235 L450,235" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)" marker-start="url(#flecha)"/>
+<path d="M720,235 L810,235" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)" marker-start="url(#flecha)"/>
+<path d="M585,330 L585,380" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)" marker-start="url(#flecha)"/>
+<path d="M450,280 L420,280 L420,635 L450,635" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)" marker-start="url(#flecha)"/>
+<path d="M1080,229 L1150,229" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M1115,229 L1115,420 L1150,420" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<circle cx="1115" cy="229" r="3" fill="#000"/>
+<path d="M945,360 L945,520 L960,520 L960,550" fill="none" stroke="#000" stroke-width="2.3" stroke-linejoin="round" stroke-dasharray="10 7" marker-end="url(#flecha)"/>
+<path d="M300,315 L300,350 L190,350 L190,755 L960,755 L960,705" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M795,678 L720,678" fill="none" stroke="#000" stroke-width="2.8" stroke-linejoin="round" stroke-dasharray="10 7" marker-end="url(#flecha)"/>
+<path d="M1125,590 L1430,590 L1430,295 L1290,295 L1290,280" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<circle cx="90" cy="185" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+<path d="M90,203 L90,259" fill="none" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+<path d="M58,228 L90,213 L122,228" fill="none" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+<path d="M65,289 L90,259 L115,289" fill="none" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+<text x="90" y="321" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" fill="#000">Usuario</text>
+<rect x="205" y="160" width="190" height="155" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="300" y="196" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" fill="#000">CLI EP2</text>
+<text x="300" y="237" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Contexto y</text>
+<text x="300" y="275" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">guardarraíles</text>
+<rect x="450" y="150" width="270" height="180" fill="#fff" stroke="#000" stroke-width="2.2"/>
+<text x="585" y="184" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" fill="#000">Agente EP2</text>
+<text x="585" y="224" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" fill="#000">LangChain / Groq</text>
+<text x="585" y="263" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Contexto proyectado</text>
+<text x="585" y="301" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">y validación local</text>
+<rect x="450" y="380" width="270" height="125" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="585" y="412" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">Planificador</text>
+<text x="585" y="447" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">adaptativo</text>
+<text x="585" y="483" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Prioridad y estado</text>
+<path d="M450,554 C450,535 720,535 720,554 L720,706 C720,725 450,725 450,706 Z" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<ellipse cx="585.0" cy="554" rx="135.0" ry="14" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="585" y="587" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">Memoria SQLite</text>
+<text x="585" y="624" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">EP2 · agent.db</text>
+<text x="585" y="659" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Memoria y plan</text>
+<text x="585" y="694" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Notas y auditoría</text>
+<text x="405" y="399" text-anchor="end" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">recuperar</text>
+<text x="405" y="434" text-anchor="end" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">y persistir</text>
+<rect x="810" y="150" width="270" height="210" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="945" y="185" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" fill="#000">Herramientas</text>
+<text x="945" y="229" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Consulta y triage</text>
+<path d="M810,263 L1080,263" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round"/>
+<text x="945" y="297" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Propuesta de nota</text>
+<text x="945" y="333" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Sin registrar la nota</text>
+<text x="969" y="442" text-anchor="start" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">propuesta</text>
+<text x="969" y="477" text-anchor="start" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">y vista previa</text>
+<path d="M1150,124 C1150,105 1420,105 1420,124 L1420,266 C1420,285 1150,285 1150,266 Z" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<ellipse cx="1285.0" cy="124" rx="135.0" ry="14" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="1285" y="157" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#000">ITSM (consulta)</text>
+<text x="1285" y="193" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">SQLite · itsm.db</text>
+<text x="1285" y="227" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">SQL parametrizado</text>
+<text x="1285" y="260" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#000">Solo lectura</text>
+<rect x="1150" y="360" width="270" height="130" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="1285" y="391" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" fill="#000">FAISS</text>
+<text x="1285" y="430" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Corpus documental</text>
+<text x="1285" y="467" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#000">Solo lectura</text>
+<rect x="795" y="550" width="330" height="155" fill="#fff" stroke="#000" stroke-width="2.8"/>
+<text x="960" y="580" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">Confirmación humana</text>
+<text x="960" y="617" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Fuera del LLM</text>
+<text x="960" y="651" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">API confirmar_nota</text>
+<text x="960" y="686" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">CONFIRMAR: registrar</text>
+<text x="1280" y="574" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">revalidar (lectura)</text>
+<text x="605" y="737" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">decisión humana en CLI</text>
+<path d="M35,790 L110,790" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<text x="125" y="790" text-anchor="start" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Consulta, control o estado interno</text>
+<path d="M680,790 L755,790" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="10 7" marker-end="url(#flecha)"/>
+<text x="770" y="790" text-anchor="start" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Ruta de nota con decisión humana</text>
+<text x="720" y="831" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">ITSM: solo lectura. Nota y auditoría: solo en agent.db tras confirmación válida.</text>
+</svg>

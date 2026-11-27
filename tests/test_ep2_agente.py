@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import warnings
 from contextlib import closing
 from time import sleep
 from unittest.mock import Mock
@@ -23,6 +24,7 @@ from src.ep2.configuracion import ConfiguracionAgente, crear_llm_ep2
 from src.ep2.contratos import ContextoEjecucion
 from src.ep2.herramientas import HerramientasEP2
 from src.retriever import ConectorITSM, RecuperadorVectorial
+from tests.utilidades import crear_faiss_de_prueba, construir_fragmento_de_prueba
 
 
 class ModeloGuionado(FakeMessagesListChatModel):
@@ -272,6 +274,63 @@ def test_sin_procedimiento_no_inventa_respuesta(entorno):
     assert respuesta.texto == config.RESPUESTA_SIN_PROCEDIMIENTO
 
 
+@pytest.mark.parametrize("fuente", ["automatica", "interna", "externa", "mixta"])
+def test_faiss_real_recupera_procedimiento_en_plan_estructurado(entorno, fuente):
+    servicio, almacen_ep2, ruta = entorno
+    antes = ruta.read_bytes()
+    publico = construir_fragmento_de_prueba(documento="kb_conectividad_vpn.md").documento
+    externo = construir_fragmento_de_prueba(documento="fortinet_vpn.md", fuente="externa").documento
+    lejano = construir_fragmento_de_prueba(documento="lejano.md").documento
+    indice = crear_faiss_de_prueba([(publico, [0.95, (1 - 0.95**2)**0.5]),
+        (externo, [0.9, (1 - 0.9**2)**0.5]), (lejano, [-1.0, 0.0])])
+    llm = modelo(llamar("consultar_ticket", {"ticket_id": "INC-2026-0411"}),
+        llamar("consultar_sla", {"prioridad": "P2"}),
+        llamar("buscar_procedimiento", {"consulta": "diagnosticar la falla de VPN", "fuente": fuente}),
+        AIMessage(content="Procedimiento documentado recuperado."))
+    agente = AgenteEP2(servicio, llm=llm, recuperador=RecuperadorVectorial(almacen=indice))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Relevance scores must be between 0 and 1")
+        respuesta = agente.responder("Consulta el ticket INC-2026-0411, revisa su SLA y busca un procedimiento para diagnosticar la falla de VPN. No modifiques el ticket.")
+    assert respuesta.estado == "ok"
+    assert respuesta.herramientas[-1].codigo == "PROCEDIMIENTO_RECUPERADO"
+    assert all(p.estado == "completado" for p in respuesta.plan_final.pasos)
+    assert any(f.startswith("corpus:") for f in respuesta.fuentes)
+    assert all(d["tool_choice"] == "auto" for d in agente.decisiones[:-1])
+    assert contar(almacen_ep2) == 0 and ruta.read_bytes() == antes
+
+
+@pytest.mark.parametrize("con_nota", [False, True])
+@pytest.mark.parametrize("triage_falla", [False, True])
+def test_sin_procedimiento_en_plan_estructurado_conserva_salida_segura(entorno, con_nota, triage_falla):
+    servicio, almacen_ep2, ruta = entorno
+    antes = ruta.read_bytes()
+    lejano = construir_fragmento_de_prueba(documento="sin_evidencia.md").documento
+    indice = crear_faiss_de_prueba([(lejano, [0.4, (1 - 0.4**2)**0.5])])
+    if triage_falla:
+        servicio.analizar_incidente = Mock(side_effect=RuntimeError("fallo interno no publicable"))
+    llm = modelo(llamar("consultar_ticket", {"ticket_id": "INC-2026-0411"}),
+        llamar("consultar_sla", {"prioridad": "P2"}),
+        llamar("buscar_procedimiento", {"consulta": "procedimiento no documentado"}),
+        llamar("analizar_incidente", {"ticket_id": "INC-2026-0411"}),
+        AIMessage(content="Inventar pasos para reparar la VPN."))
+    agente = AgenteEP2(servicio, llm=llm, recuperador=RecuperadorVectorial(almacen=indice))
+    consulta = "Consulta ticket INC-2026-0411, su SLA y busca un procedimiento."
+    if con_nota:
+        consulta += " Propón una nota."
+    respuesta = agente.responder(consulta)
+    assert respuesta.estado == ("error" if triage_falla else "sin_contexto")
+    if not triage_falla:
+        assert respuesta.texto == config.RESPUESTA_SIN_PROCEDIMIENTO
+    assert "Inventar pasos" not in respuesta.texto
+    assert len(llm.entradas) == 4
+    assert any(t.codigo == "SIN_PROCEDIMIENTO" for t in respuesta.herramientas)
+    assert not respuesta.confirmaciones and not any(f.startswith("corpus:") for f in respuesta.fuentes)
+    assert next(p for p in respuesta.plan_final.pasos if p.herramienta == "buscar_procedimiento").estado == "bloqueado"
+    if con_nota:
+        assert next(p for p in respuesta.plan_final.pasos if p.herramienta == "registrar_nota_ticket").estado == "bloqueado"
+    assert contar(almacen_ep2) == 0 and ruta.read_bytes() == antes
+
+
 def test_scratchpad_y_trazas_no_se_comparten_entre_consultas(entorno):
     servicio, _, _ = entorno
     llm = modelo(llamar("consultar_sla", {"prioridad": "P2"}), AIMessage(content="Primera respuesta."),
@@ -295,13 +354,15 @@ def test_fabrica_ep2_usa_misma_clave_y_deja_modelo_ep1(monkeypatch):
     crear_llm_ep2(ConfiguracionAgente())
     assert fabrica.call_args.kwargs["model"] == "openai/gpt-oss-20b"
     assert fabrica.call_args.kwargs["api_key"] == "clave-falsa"
+    assert fabrica.call_args.kwargs["max_retries"] == 0  # El reintento pertenece al adaptador EP2.
     config.crear_llm()
     assert fabrica.call_args.kwargs["model"] == original
     assert config.MODELO_CHAT == original
 
 
 @pytest.mark.parametrize(("campo", "valor"), [("max_iteraciones", 0), ("max_segundos", float("nan")),
-                                              ("timeout_llm", 0), ("modelo", " ")])
+                                              ("timeout_llm", 0), ("modelo", " "),
+                                              ("max_reintentos_llm", -1), ("max_reintentos_llm", 3)])
 def test_configuracion_rechaza_limites_invalidos(campo, valor):
     with pytest.raises(ValidationError):
         ConfiguracionAgente(**{campo: valor})

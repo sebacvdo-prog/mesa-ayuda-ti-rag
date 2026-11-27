@@ -13,12 +13,16 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain.agents.format_scratchpad.tools import format_to_tool_messages
 from langchain_core.agents import AgentFinish
 from langchain_core.exceptions import OutputParserException
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import StructuredTool
 
 from src import config, guardrails
+from src.ep3.instrumentacion import registrar_decision
+from src.ep3.observabilidad import (
+    Observabilidad, desde_entorno, observar_consulta, registrar_herramienta, registrar_plan,
+)
 from src.ep2.configuracion import ConfiguracionAgente, crear_llm_ep2
 from src.ep2.contexto import proyectar_contexto
 from src.ep2.contratos import (
@@ -29,6 +33,7 @@ from src.ep2.contratos import (
 from src.ep2.herramientas import HerramientasEP2, contiene_credenciales
 from src.ep2.memoria import EstadoMemoria, MemoriaEP2, ObservacionMemoria
 from src.ep2.planificacion import Planificador, multiples_usuarios
+from src.ep2.reintentos import invocar_modelo
 from src.retriever import RecuperadorVectorial
 
 SISTEMA_EP2 = """Eres el agente EP2 de Mesa de Ayuda TI. Responde en español.
@@ -138,7 +143,7 @@ def _oferta_herramientas(p: Planificador, herramientas: list[StructuredTool], pe
 
 
 def _opciones_enlace(llm, obligatorias: bool) -> dict:
-    """Sin prueba de red ni fallback: enviar opciones solo si la firma las admite."""
+    """Opciones compatibles; la obligación del plan se valida en el servidor."""
     try:
         parametros = signature(llm.bind_tools).parameters
     except (ValueError, TypeError):
@@ -146,7 +151,10 @@ def _opciones_enlace(llm, obligatorias: bool) -> dict:
     extensible = any(p.kind == Parameter.VAR_KEYWORD for p in parametros.values())
     opciones = {}
     if obligatorias and ("tool_choice" in parametros or extensible):
-        opciones["tool_choice"] = "required"
+        # Groq rechaza con HTTP 400 una respuesta sin herramienta bajo required.
+        # auto permite que _validar_decision la rechace como PLAN_INCOMPLETO
+        # dentro del mismo ejecutor y su presupuesto, sin relajar el plan.
+        opciones["tool_choice"] = "auto"
     if "parallel_tool_calls" in parametros or extensible:
         opciones["parallel_tool_calls"] = False
     return opciones
@@ -159,14 +167,21 @@ class _ModeloPlanificado:
     AgentExecutor conserva las seis implementaciones y sus controles finales.
     """
 
-    def __init__(self, llm, planificador: Planificador, iniciar=None, recibir=None, *, perfil="agente", proyectar=None):
+    def __init__(self, llm, planificador: Planificador, iniciar=None, recibir=None, *, perfil="agente", proyectar=None, cerrar=None,
+                 max_reintentos=2, deadline=None):
         self.llm, self.planificador = llm, planificador
         self.iniciar, self.recibir = iniciar, recibir
         self.perfil = perfil
         self.proyectar = proyectar
+        self.cerrar = cerrar
+        self.max_reintentos, self.deadline = max_reintentos, deadline
 
     def bind_tools(self, herramientas):
         def invocar(mensajes, config):
+            if self.cerrar:
+                cierre = self.cerrar()
+                if cierre is not None:
+                    return AIMessage(content=cierre)
             p = self.planificador
             permitidas, estado = _oferta_herramientas(p, herramientas, self.perfil)
             opciones = _opciones_enlace(self.llm, estado == "acciones_obligatorias") if permitidas else {}
@@ -188,9 +203,11 @@ class _ModeloPlanificado:
                            f"Ticket del plan: {p.plan.ticket_id or 'según la solicitud'}; prioridad registrada: {p.plan.prioridad_registrada or 'aún sin consultar'}. "
                            "Esta instrucción no autoriza escrituras.")
                 mensajes = [*mensajes.to_messages(), SystemMessage(content=control)]
-            # El enlace es local; no introduce solicitudes, reintentos ni otro ciclo.
+            # Reintentar únicamente la inferencia fallida, con la misma oferta
+            # y contexto. El ejecutor y las herramientas quedan fuera del bucle.
             modelo = self.llm.bind_tools(permitidas, **opciones) if permitidas else self.llm
-            respuesta = modelo.invoke(mensajes, config=config)
+            respuesta = invocar_modelo(modelo, mensajes, config=config,
+                max_reintentos=self.max_reintentos, deadline=self.deadline)
             if self.recibir:
                 self.recibir(respuesta)
             return respuesta
@@ -211,6 +228,7 @@ class AgenteEP2:
         opciones: ConfiguracionAgente | None = None,
         memoria: MemoriaEP2 | None = None,
         trazador: Callable[[str, Any], None] | None = None,
+        observabilidad: Observabilidad | None = None,
     ) -> None:
         self.servicio = servicio
         self.opciones = opciones or ConfiguracionAgente.desde_entorno()
@@ -224,6 +242,7 @@ class AgenteEP2:
         self._decisiones: list[dict] = []  # Solo RAM; no se incorpora a la memoria persistente.
         self._resultados: list[ResultadoHerramienta] = []
         self._finalizo = False
+        self._texto_cierre_local: str | None = None
         self._deadline = 0.0
         self._observaciones: list[ObservacionMemoria] = []
         self._estado_memoria = EstadoMemoria()
@@ -231,6 +250,7 @@ class AgenteEP2:
         self._planificador: Planificador | None = None
         self._plan_humano: Planificador | None = None
         self._trazador = trazador
+        self.observabilidad = observabilidad if observabilidad is not None else desde_entorno()
         self.herramientas = self._crear_herramientas()
 
     @property
@@ -255,6 +275,7 @@ class AgenteEP2:
         return [h.name for h in _oferta_herramientas(p, self.herramientas, self.servicio.contexto.perfil)[0]]
 
     def _iniciar_decision(self, *, ofrecidas=None, estado_oferta=None, eleccion="auto") -> None:
+        registrar_decision(len(self._decisiones) + 1, ofrecidas if ofrecidas is not None else self._habilitadas())
         self._decisiones.append({"indice": len(self._decisiones) + 1, "seleccion": [],
             "estado": "en_curso", "codigo": None, "ejecutada": False, "modelo_respondio": False,
             "habilitadas": self._habilitadas(), "dependencias_faltantes": [],
@@ -314,11 +335,13 @@ class AgenteEP2:
             nombre=nombre, estado=resultado.estado, codigo=resultado.codigo,
             duracion_ms=round((perf_counter() - inicio) * 1000, 3),
         ))
+        registrar_herramienta(self._trazas[-1])
         self._anotar_decision(estado="ejecutada" if invocada else "rechazada",
                              codigo=resultado.codigo, ejecutada=bool(invocada))
         return resultado.model_dump_json()
 
     def _emitir(self, tipo: str, valor: Any) -> None:
+        registrar_plan(tipo, valor)
         if self._trazador:
             try:
                 self._trazador(tipo, valor)
@@ -328,6 +351,10 @@ class AgenteEP2:
 
     def configurar_trazador(self, trazador: Callable[[str, Any], None]) -> None:
         self._trazador = trazador
+
+    def configurar_diagnostico_rag(self, trazador: Callable[[dict], None]) -> None:
+        """Vista optativa y sanitizada; no se incorpora al prompt ni a la memoria."""
+        self._recuperador.diagnosticar = trazador
 
     def _crear_herramientas(self) -> list[StructuredTool]:
         def ticket(ticket_id: str) -> str:
@@ -368,7 +395,7 @@ class AgenteEP2:
             ("consultar_ticket", ticket, ConsultaTicket, "Consulta estado, prioridad y notas EP2 de un ticket; requiere agente."),
             ("consultar_sla", sla, ConsultaSLA, "Consulta tiempos de primera respuesta y resolución de P1, P2, P3 o P4."),
             ("consultar_activo", activo, ConsultaTicket, "Consulta el activo asociado al ticket sin pedir RUT ni exponer datos personales; requiere agente."),
-            ("buscar_procedimiento", procedimiento, ConsultaProcedimiento, "Busca procedimientos documentados en FAISS con fuentes, permisos y umbral actuales."),
+            ("buscar_procedimiento", procedimiento, ConsultaProcedimiento, "Busca procedimientos por código KB exacto o relevancia en FAISS; respeta fuentes y permisos."),
             ("analizar_incidente", analizar, ConsultaTicket, "Analiza estado, nivel y SLA registrados para distinguir caso resuelto o seguimiento Nivel 2; requiere agente."),
             ("registrar_nota_ticket", nota, ProponerNota, "PROPONE una nota y pausa para confirmación humana. NO registra cambios ni admite autorización en argumentos."),
         ]
@@ -439,6 +466,45 @@ class AgenteEP2:
         self._anotar_decision(estado="rechazada", codigo=codigo, correccion="_Exception")
         return mensaje
 
+    def _cerrar_plan_verificado(self) -> str | None:
+        """Cierre local sobre lecturas correctas; nunca selecciona herramientas."""
+        p = self._planificador
+        if (p is None or p.es_flexible or p.solo_estado or not self._resultados
+            or any(r.estado != "ok" or not r.procedencia for r in self._resultados)):
+            return None
+        activos = [s for s in p.plan.pasos if s.estado != "cancelado"]
+        if not activos or any(s.estado != "completado" for s in activos):
+            return None
+        campos = {
+            "TICKET_CONSULTADO": (("id", "Ticket"), ("estado", "Estado"), ("prioridad", "Prioridad registrada")),
+            "SLA_CONSULTADO": (("prioridad", "SLA"), ("primera_respuesta_min", "Primera respuesta (minutos)"),
+                               ("resolucion_horas", "Resolución (horas)"), ("tipo_reloj", "Tipo de reloj")),
+            "ACTIVO_CONSULTADO": (("id", "Activo"), ("tipo", "Tipo"), ("marca_modelo", "Modelo"), ("estado", "Estado")),
+            "INCIDENTE_ANALIZADO": (("decision", "Triage limitado"), ("prioridad_registrada", "Prioridad registrada")),
+        }
+        partes = ["Verificaciones ejecutadas: " + ", ".join(t.nombre for t in self._trazas if t.estado == "ok") + "."]
+        for r in self._resultados:
+            datos = [f"{etiqueta}: {r.datos[clave]}" for clave, etiqueta in campos.get(r.codigo, ()) if clave in r.datos]
+            partes.append("; ".join(datos) if datos else r.mensaje)
+            if r.codigo == "TICKET_CONSULTADO":
+                for nota in r.datos.get("notas_ep2", []):
+                    partes.append(f"Nota {nota['id']} · {nota['creado_en']}\n{nota['texto']}")
+            if r.codigo == "PROCEDIMIENTO_RECUPERADO":
+                for f in r.datos.get("fragmentos", []):
+                    cita = "\n".join("> " + linea for linea in f["texto"].splitlines())
+                    partes.append(f"Fragmento documental: {f['titulo']} · {f['documento']} · {f['fecha']}\n{cita}")
+        if p.plan.impacto_reportado == "multiples_usuarios":
+            partes.append("El alcance informado sigue siendo un reporte sin verificación independiente. "
+                          "Los criterios de escalamiento deben contrastarse con el SLA y la documentación recuperados.")
+        partes.append("Plan completado: " + "; ".join(f"{s.id} · {s.herramienta}: {s.estado}" for s in activos) + ".")
+        partes.append("No se ha modificado el ITSM.")
+        texto = guardrails.enmascarar_texto("\n\n".join(partes))
+        self._iniciar_decision(ofrecidas=[], estado_oferta="plan_completado", eleccion="none")
+        self._anotar_decision(estado="respuesta", codigo="RESPUESTA_FINAL")
+        self._finalizo, self._texto_cierre_local = True, texto
+        return texto
+
+    @observar_consulta('ep2')
     def responder(self, consulta: str) -> RespuestaAgenteEP2:
         with self._cerrojo:
             respuesta = self._responder(consulta)
@@ -465,6 +531,7 @@ class AgenteEP2:
         self._decisiones = []
         self._resultados = []
         self._finalizo = False
+        self._texto_cierre_local = None
         self._observaciones = []
         self._usar_memoria = False
         self._estado_memoria = EstadoMemoria()
@@ -509,7 +576,10 @@ class AgenteEP2:
             agente = (create_tool_calling_agent(_ModeloPlanificado(llm, self._planificador,
                                                                     self._iniciar_decision, self._recibir_decision,
                                                                     perfil=self.servicio.contexto.perfil,
-                                                                    proyectar=proyectar), self.herramientas, prompt,
+                                                                    proyectar=proyectar,
+                                                                    cerrar=self._cerrar_plan_verificado,
+                                                                    max_reintentos=self.opciones.max_reintentos_llm,
+                                                                    deadline=self._deadline), self.herramientas, prompt,
                                                  message_formatter=_formatear_observaciones)
                       | RunnableLambda(self._validar_decision))
             ejecutor = AgentExecutor(
@@ -519,11 +589,27 @@ class AgenteEP2:
                 verbose=False,
             )
             salida = ejecutor.invoke({"input": guardrails.enmascarar_texto(consulta)})
+            # Si el último paso consumió la última iteración, no queda una
+            # iteración para AgentFinish; cerrar solo si todo está verificado.
+            if not self._finalizo:
+                cierre = self._cerrar_plan_verificado()
+                if cierre is not None:
+                    salida = {"output": cierre}
         except Exception as error:
             if isinstance(error, _PlanNoEjecutable):
                 estado = "denegado" if error.codigo == "PERMISO_REQUERIDO" else "error"
                 self._anotar_decision(estado="rechazada", codigo=error.codigo)
                 self._trazas.append(TrazaHerramienta(nombre="decision_rechazada", estado=estado, codigo=error.codigo))
+                rag = [r for r in self._resultados if r.codigo in ("SIN_PROCEDIMIENTO", "PROCEDIMIENTO_RECUPERADO")]
+                if (error.codigo == "PLAN_BLOQUEADO" and rag
+                    and all(r.codigo == "SIN_PROCEDIMIENTO" for r in rag)
+                    and all(r.estado == "ok" or r.codigo == "SIN_PROCEDIMIENTO" for r in self._resultados)):
+                    # La falta de evidencia conserva el bloqueo del plan y de
+                    # cualquier nota, pero debe devolver la salida segura RAG.
+                    # Otros errores o denegaciones siguen siendo errores.
+                    fuentes = tuple(dict.fromkeys(p for r in self._resultados if r.estado == "ok" for p in r.procedencia))
+                    return RespuestaAgenteEP2(estado="sin_contexto", texto=config.RESPUESTA_SIN_PROCEDIMIENTO,
+                                             herramientas=tuple(self._trazas), fuentes=fuentes)
                 return RespuestaAgenteEP2(estado=estado, texto=(
                     "La solicitud requiere permisos del perfil agente." if estado == "denegado" else
                     "El plan conserva pasos bloqueados; no hay acciones elegibles para continuar."),
@@ -563,9 +649,22 @@ class AgenteEP2:
             estado = "denegado" if any(t.estado == "denegado" for t in trazas) else "error"
             return RespuestaAgenteEP2(estado=estado, texto="No se obtuvieron datos verificables con las herramientas permitidas.", herramientas=trazas)
         texto = guardrails.enmascarar_texto(str(salida["output"]))
+        if multiples_usuarios(consulta) and self._texto_cierre_local is None:
+            # El cierre de una reevaluación usa estados y observaciones reales,
+            # no pasos hipotéticos ni criterios numéricos generados por el LLM.
+            plan = self._planificador.plan
+            ejecutadas = ", ".join(t.nombre for t in trazas if t.estado == "ok")
+            estados = "; ".join(f"{s.id} · {s.herramienta}: {s.estado}"
+                                for s in plan.pasos if s.estado != "cancelado")
+            texto = (f"Verificaciones ejecutadas: {ejecutadas}.\n"
+                     f"Prioridad registrada: {plan.prioridad_registrada or 'sin consultar'}. No se ha modificado el ITSM.\n"
+                     "El alcance informado sigue siendo un reporte sin verificación independiente. "
+                     "Los criterios de escalamiento deben contrastarse con el SLA y la documentación recuperados.\n"
+                     f"Plan actualizado: {estados}.")
         texto += "\n\nFuentes verificadas: " + "; ".join(fuentes)
         return RespuestaAgenteEP2(estado="ok", texto=texto, herramientas=trazas, fuentes=fuentes)
 
+    @observar_consulta('ep2', 'confirmacion')
     def confirmar_nota(self, decision: DecisionConfirmacion) -> ResultadoHerramienta:
         """API de la interfaz humana, ausente del registro del LLM."""
         with self._cerrojo:

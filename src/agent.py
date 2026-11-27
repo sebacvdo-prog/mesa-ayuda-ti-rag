@@ -25,6 +25,8 @@ from typing import Any, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from src import config, guardrails, memory, prompts
+from src.ep3.observabilidad import Observabilidad, desde_entorno, observar_consulta
+from src.ep3.instrumentacion import configurar_callbacks
 from src.retriever import (
     ConectorITSM,
     FragmentoRecuperado,
@@ -134,6 +136,7 @@ class AsistenteMesaAyuda:
         conector: ConectorITSM | None = None,
         llm: Any | None = None,
         usar_resumidor_llm: bool = True,
+        observabilidad: Observabilidad | None = None,
     ) -> None:
         """Inicializa el asistente.
 
@@ -150,6 +153,7 @@ class AsistenteMesaAyuda:
         self._llm = llm
         self._cadena: Any | None = None
         self._usar_resumidor_llm = usar_resumidor_llm
+        self.observabilidad = observabilidad if observabilidad is not None else desde_entorno()
 
     # -- Construcción perezosa ----------------------------------------------
 
@@ -192,6 +196,7 @@ class AsistenteMesaAyuda:
 
     # -- Consulta -------------------------------------------------------------
 
+    @observar_consulta('ep1')
     def responder(
         self,
         consulta: str,
@@ -262,7 +267,8 @@ class AsistenteMesaAyuda:
                 "datos_itsm": datos_enmascarados.texto or "(sin datos estructurados)",
                 "perfil": perfil,
             },
-            config={"configurable": {"session_id": session_id}},
+            config=configurar_callbacks({"configurable": {"session_id": session_id}}),
+            _componente_ep3="modelo",
         )
         texto = str(getattr(salida, "content", salida)).strip()
 

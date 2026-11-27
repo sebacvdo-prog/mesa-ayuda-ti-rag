@@ -1,0 +1,267 @@
+{
+  "version": 2,
+  "git_head": "8d248c3b9aa90960db13a5de6f9709e91e60637b",
+  "fases": {
+    "A": "COMPLETO",
+    "B": "COMPLETO",
+    "C": "COMPLETO",
+    "D": "PARCIAL: offline completo, Groq real pendiente",
+    "E": "COMPLETO",
+    "F": "COMPLETO en alcance offline",
+    "G": "COMPLETO: guías sin conclusiones personales",
+    "H": "COMPLETO"
+  },
+  "linea_base": {
+    "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "pruebas": {
+      "tests": 790,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 790
+    },
+    "duracion_segundos": 64.353,
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0
+    }
+  },
+  "regresion_final": {
+    "pruebas": {
+      "tests": 820,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 820
+    },
+    "duracion_segundos": 69.805,
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0,
+      "ipc_socketpair_local": 8
+    },
+    "codigo_sin_cambios_durante_pruebas": true
+  },
+  "pruebas_nuevas": 30,
+  "verificaciones": {
+    "codigo_coincide_con_pruebas_y_evaluacion": true,
+    "artefactos_originales_intactos": true,
+    "sin_archivos_preexistentes_ausentes": true,
+    "dependencias_sin_cambios": true,
+    "hmac_dos_procesos": true,
+    "migracion_json_identicos": true
+  },
+  "metricas_controladas": {
+    "acierto_documental": {
+      "registros": 9,
+      "muestras": 9,
+      "promedio_ponderado": 1.0
+    },
+    "consistencia": {
+      "registros": 6,
+      "muestras": 18,
+      "promedio_ponderado": 1.0
+    },
+    "cumplimiento_restricciones": {
+      "registros": 26,
+      "muestras": 26,
+      "promedio_ponderado": 1.0
+    },
+    "exactitud_hechos": {
+      "registros": 8,
+      "muestras": 8,
+      "promedio_ponderado": 1.0
+    }
+  },
+  "casos": 26,
+  "benchmark": {
+    "off_ms": {
+      "n": 30,
+      "promedio": 30.75805332046002,
+      "p50": 30.750849866308272,
+      "p95": 32.13356997584924
+    },
+    "on_ms": {
+      "n": 30,
+      "promedio": 33.959156655085586,
+      "p50": 33.843299956060946,
+      "p95": 35.58820007601753
+    },
+    "delta_ms": {
+      "n": 30,
+      "promedio": 3.201103334625562,
+      "p50": 3.237249911762774,
+      "p95": 4.58218001294881
+    },
+    "sobrecarga_pct": {
+      "n": 30,
+      "promedio": 10.461647511790384,
+      "p50": 10.743437439221887,
+      "p95": 14.961752957965157
+    }
+  },
+  "ordenes_benchmark": {
+    "off_on": 15,
+    "on_off": 15
+  },
+  "semilla": 20261126,
+  "telemetria": {
+    "tipo_ejecucion": "simulada",
+    "kpi": {
+      "consultas": 60,
+      "ok": 45,
+      "fallas_tecnicas": 1,
+      "pendientes": 9,
+      "muestras_latencia": 60,
+      "promedio_ms": 34.0429816627875,
+      "p50_ms": 33.574950066395104,
+      "p95_ms": 51.559290161821984,
+      "solicitudes_llm": 121,
+      "decisiones": 159
+    },
+    "trazas": 67,
+    "eventos": 1245,
+    "estados_consulta": {
+      "ok": 45,
+      "requiere_confirmacion": 9,
+      "sin_contexto": 3,
+      "error": 1,
+      "denegado": 2
+    },
+    "respuestas_modelo": 115,
+    "respuestas_con_tokens": 0,
+    "cpu_muestras": 60,
+    "ram_muestras": 60,
+    "salud": {
+      "emitidos": 1245,
+      "persistidos": 1245,
+      "descartados": 0,
+      "pendientes": 0,
+      "fallos_validacion": 0,
+      "fallos_almacenamiento": 0,
+      "fallos_instrumentacion": 0
+    },
+    "reintentos_resultados": {
+      "ok": 2,
+      "error": 1
+    }
+  },
+  "microbenchmark_recursos": {
+    "antes": {
+      "n": 200,
+      "promedio_ms": 0.06528949365019798,
+      "p50_ms": 0.05319993942975998,
+      "fuente_sha256": "1011ffcc2ed54182c9aaf03c5f12c738bd0ced9493d2d567db99d9e77f5cb7fc"
+    },
+    "despues": {
+      "n": 200,
+      "promedio_ms": 0.004252013750374317,
+      "p50_ms": 0.002400018274784088,
+      "fuente_sha256": "4a9e990bc097b521001997621769dd7daf1659a2ed70e1c710d28f282b3bab73"
+    }
+  },
+  "migracion": {
+    "origen_sin_cambios": true,
+    "eventos_previos": 31,
+    "eventos_despues": 31,
+    "json_previos_identicos": true,
+    "version_destino": 2,
+    "version_respaldo": 1,
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0,
+      "ipc_socketpair_local": 0
+    }
+  },
+  "archivos_preexistentes_modificados": [
+    "README.md",
+    "docs/ep3_observabilidad.md",
+    "eval/aislamiento_ep3.py",
+    "eval/check_ep2_retrieval.py",
+    "eval/check_ep3_observabilidad.py",
+    "eval/check_ep3_regression.py",
+    "src/agent.py",
+    "src/config.py",
+    "src/ep2/agente.py",
+    "src/ep2/cli.py",
+    "src/ep2/memoria.py",
+    "src/ep2/reintentos.py",
+    "src/ep3/almacenamiento.py",
+    "src/ep3/observabilidad.py",
+    "src/memory.py",
+    "src/retriever.py",
+    "tests/test_ep3_integracion.py",
+    "tests/test_ep3_observabilidad.py"
+  ],
+  "dependencias_relevantes": {
+    "faiss-cpu": "1.15.1",
+    "langchain": "0.3.30",
+    "langchain-community": "0.3.31",
+    "langchain-core": "0.3.86",
+    "langchain-openai": "0.3.35",
+    "langsmith": "0.14.8",
+    "pandas": "3.0.6",
+    "pydantic": "2.14.1",
+    "pytest": "8.4.2",
+    "streamlit": "1.66.0"
+  },
+  "evidencia_raiz": ".cache/ep3/20261126T184710Z",
+  "artefactos": [
+    "previo/estado.json",
+    "previo/codigo_previo.zip",
+    "baseline/resultado.json",
+    "baseline/pytest.xml",
+    "aceptacion_v1_v2/resultado.json",
+    "aceptacion_v1_v2/pytest.xml",
+    "evaluacion_final/evaluacion.json",
+    "evaluacion_final/evaluaciones.csv",
+    "evaluacion_final/benchmark.csv",
+    "evaluacion_final/observabilidad.db",
+    "analisis_final/analisis.json",
+    "analisis_final/hallazgos.md",
+    "exportacion_final/eventos.json",
+    "exportacion_final/eventos.csv",
+    "migracion_controlada/verificacion.json",
+    "recursos_antes.json",
+    "recursos_despues.json",
+    "verificacion_final.json"
+  ],
+  "huellas_evidencias": {
+    "baseline/pytest.xml": "0a139f05d37e0574e682b18f5b67fabc283c14f74c8e3ec1c16376f9eaec3ceb",
+    "aceptacion_v1_v2/pytest.xml": "e6dd7b2cb14a2d1719bd51c278351068fee4226540673291496d945650fa3323",
+    "evaluacion_final/evaluacion.json": "b8fffceccea13a213ce6f7dbaff0cdd612c172b1b70e0a8372099d85c4f4eeaa",
+    "evaluacion_final/evaluaciones.csv": "65fbdef3c3bbacc827d4ae31364f475927f99a9043d09ac042c5614bd588eee0",
+    "evaluacion_final/benchmark.csv": "5bd56f22e55fe1bc10e8e9d3a115cd94ab2be83a0dad4add5588f9585a9d7033",
+    "evaluacion_final/observabilidad.db": "d75b63288e646793061fc0ae42f7a395a3c5731db59c7ffdefcf41e85a029b20",
+    "analisis_final/analisis.json": "b8c1ca6e173751c26beac96cb691647011c9281a5c74eeb7332c5ac67a040ee5"
+  },
+  "archivos_creados": [
+    "docs/ep3_arquitectura_metricas.md",
+    "docs/ep3_defensa.md",
+    "docs/ep3_esquema_informe.md",
+    "docs/ep3_evaluacion_v2.schema.json",
+    "docs/ep3_evento_v2.schema.json",
+    "docs/ep3_guia_completa.md",
+    "docs/ep3_traza_v2.schema.json",
+    "docs/evidencias/ep3_desarrollo_tecnico.md",
+    "docs/evidencias/ep3_desarrollo_tecnico_resultados.json",
+    "docs/evidencias/ep3_hallazgos.md",
+    "eval/analyze_ep3.py",
+    "eval/escenarios_ep3.py",
+    "eval/evaluate_ep3.py",
+    "eval/gestion_ep3.py",
+    "src/dashboard_ep3.py",
+    "src/ep3/analisis.py",
+    "src/ep3/contratos_v2.py",
+    "src/ep3/identidad.py",
+    "src/ep3/instrumentacion.py",
+    "src/ep3/lectura.py",
+    "src/ep3/recursos.py",
+    "tests/test_ep3_dashboard.py",
+    "tests/test_ep3_evaluacion_completa.py",
+    "tests/test_ep3_v2.py"
+  ]
+}

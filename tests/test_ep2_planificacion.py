@@ -145,7 +145,23 @@ def test_prioridad_sla_debe_ser_la_registrada_no_inventada(entorno):
 
 @pytest.mark.parametrize(("texto", "esperado"), [("Ahora hay varios usuarios afectados", True),
     ("Hay 8 usuarios afectados", True), ("Hay 1 usuarios afectados", False),
-    ("No hay varios usuarios afectados", False), ("El usuario sigue afectado", False)])
+    ("No hay varios usuarios afectados", False), ("El usuario sigue afectado", False),
+    ("Ahora varios usuarios de la misma sucursal están afectados por la VPN.", True),
+    ("Varios usuarios de la misma sucursal están afectados por la VPN.", True),
+    ("Hay 3 usuarios de la sucursal que están afectados por la VPN.", True),
+    ("La falla de VPN afecta a varios usuarios de la misma sucursal.", True),
+    ("Varios usuarios de la sucursal reportan la misma falla de VPN.", True),
+    ("No hay varios usuarios de la misma sucursal afectados por la VPN.", False),
+    ("Varios usuarios de la misma sucursal no están afectados por la VPN.", False),
+    ("Si varios usuarios de la misma sucursal están afectados por la VPN, ¿qué harías?", False),
+    ("Varios usuarios de la sucursal podrían estar afectados por la VPN.", False),
+    ("Hay 1 usuarios de la misma sucursal afectados por la VPN.", False),
+    ("Hay varios usuarios en la sucursal. Un usuario está afectado por la VPN.", False),
+    ("La VPN no afecta a varios usuarios de la misma sucursal.", False),
+    ("Varios usuarios de la sucursal no reportan fallas de VPN.", False),
+    ("No modifiques el ticket, pero varios usuarios de la sucursal están afectados.", True),
+    ("Si la VPN falla, consulta el procedimiento. Ahora varios usuarios de la sucursal están afectados.", True),
+])
 def test_interpreta_reporte_de_impacto_sin_inferir_confirmacion(texto, esperado):
     assert multiples_usuarios(texto) == esperado
 
@@ -172,6 +188,91 @@ def test_replanifica_impacto_reabre_verificaciones_y_distingue_prioridades(entor
     assert q.plan.prioridad_propuesta != "P1"
     assert "sujeta" in q.plan.criterio_prioridad
     assert q.preparar("registrar_nota_ticket", {"ticket_id": TICKET}).codigo == "PLAN_DEPENDENCIA_PENDIENTE"
+
+
+def test_sucursal_reabre_plan_completado_y_crea_analisis_real(entorno):
+    servicio, _, _ = entorno
+    p = Planificador(SOLICITUD)
+    ticket_sla(p, servicio)
+    ejecutar(p, "buscar_procedimiento", procedimiento())
+    previo = p.plan.model_copy(deep=True)
+    q = Planificador("Ahora varios usuarios de la misma sucursal están afectados por la VPN.",
+                     anterior=previo, ticket_activo=TICKET)
+    assert q.plan.id == previo.id and q.plan.revision > previo.revision
+    assert q.plan.prioridad_registrada == previo.prioridad_registrada == "P2"
+    assert q.plan.prioridad_propuesta is None and not q.plan.impacto_verificado
+    assert q.plan.impacto_reportado == "multiples_usuarios"
+    assert any(c.codigo == "REPLANIFICACION_IMPACTO" for c in q.plan.cambios)
+    assert [s.herramienta for s in q.disponibles()] == ["consultar_ticket"]
+    assert all(s.estado == "pendiente" and s.intentos == 0 for s in q.plan.pasos)
+    p4 = next(s for s in q.plan.pasos if s.herramienta == "analizar_incidente")
+    assert p4.id == "p4" and set(p4.dependencias) == {"p1", "p2"}
+    assert q.preparar("analizar_incidente", {"ticket_id": TICKET}).codigo == "PLAN_DEPENDENCIA_PENDIENTE"
+
+
+@pytest.mark.parametrize("reiniciar", [False, True], ids=("misma_instancia", "nueva_instancia"))
+@pytest.mark.parametrize("reporte", [
+    "Ahora varios usuarios de la misma sucursal están afectados por la VPN.",
+    "La falla de VPN afecta a varios usuarios de la misma sucursal.",
+])
+def test_impacto_tras_sesion_completada_se_ejecuta_y_persiste(entorno, reiniciar, reporte):
+    from tests.utilidades import construir_fragmento_de_prueba, crear_faiss_de_prueba
+
+    servicio, memoria, ruta = entorno
+    antes = ruta.read_bytes()
+    doc = construir_fragmento_de_prueba(documento="kb_conectividad_vpn.md",
+        titulo="KB-RED-02 · Conectividad y VPN", texto="Evidencia de procedimiento VPN.").documento
+    indice = crear_faiss_de_prueba([(doc, [-1.0, 0.0])])
+    recuperador = RecuperadorVectorial(almacen=indice)
+    iniciales = [llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
+        llamada("buscar_procedimiento", consulta="KB-RED-02")]
+    inventado = AIMessage(content="Un p4 hipotético escalaría con más de 5 usuarios o 10 % de afectados.")
+    impacto = [inventado, llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
+        llamada("analizar_incidente", ticket_id=TICKET), llamada("buscar_procedimiento", consulta="KB-RED-02"), inventado]
+    llm = modelo(*(iniciales if reiniciar else iniciales + impacto))
+    agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=recuperador)
+    assert agente.responder(f"Consulta ticket {TICKET}, su SLA y busca el procedimiento KB-RED-02 para VPN.").estado == "ok"
+    previo = memoria.recuperar().plan
+    assert len(previo.pasos) == 3 and all(p.estado == "completado" for p in previo.pasos)
+    if reiniciar:
+        almacen = AlmacenEP2(servicio.almacen.ruta.parent)
+        servicio = HerramientasEP2(servicio.contexto, almacen, ConectorITSM(ruta))
+        memoria = MemoriaEP2(almacen, servicio.contexto)
+        llm = modelo(*impacto)
+        agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=recuperador)
+    respuesta = agente.responder(reporte)
+    assert respuesta.estado == "ok" and respuesta.memoria_estado == "actualizada"
+    assert respuesta.plan_final.id == previo.id and respuesta.plan_final.revision > previo.revision
+    assert respuesta.plan_inicial.impacto_reportado == "multiples_usuarios"
+    assert respuesta.plan_inicial.prioridad_registrada == respuesta.plan_final.prioridad_registrada == "P2"
+    assert all(p.estado == "pendiente" and p.intentos == 0 for p in respuesta.plan_inicial.pasos)
+    assert [t.nombre for t in respuesta.herramientas] == [
+        "consultar_ticket", "consultar_sla", "analizar_incidente", "buscar_procedimiento"]
+    assert all(p.estado == "completado" and p.intentos == 1 for p in respuesta.plan_final.pasos)
+    assert any(p.id == "p4" and p.herramienta == "analizar_incidente" for p in respuesta.plan_final.pasos)
+    assert agente.decisiones[0]["codigo"] == "PLAN_INCOMPLETO"
+    assert all(d["tool_choice"] == "auto" for d in agente.decisiones[:-1])
+    assert memoria.recuperar().plan.model_dump_json() == respuesta.plan_final.model_dump_json()
+    assert all(t not in respuesta.texto for t in ("hipotético", "5 usuarios", "10 %"))
+    assert "analizar_incidente" in respuesta.texto and "P2" in respuesta.texto
+    assert not respuesta.confirmaciones and respuesta.escrituras_realizadas == 0
+    assert not any(p.herramienta == "registrar_nota_ticket" for p in respuesta.plan_final.pasos)
+    assert ruta.read_bytes() == antes
+    with servicio.almacen._conexion() as c:
+        assert c.execute("SELECT COUNT(*) FROM notas").fetchone()[0] == 0
+        assert c.execute("SELECT COUNT(*) FROM auditoria").fetchone()[0] == 0
+
+
+def test_plan_completado_no_se_adapta_por_hipotesis_o_negacion(entorno):
+    servicio, _, _ = entorno
+    p = Planificador(SOLICITUD)
+    ticket_sla(p, servicio)
+    ejecutar(p, "buscar_procedimiento", procedimiento())
+    for texto in ("Retoma el plan. No hay varios usuarios de la sucursal afectados.",
+                  "Retoma el plan. Si varios usuarios de la sucursal están afectados, ¿qué harías?"):
+        q = Planificador(texto, anterior=p.plan.model_copy(deep=True), ticket_activo=TICKET)
+        assert q.plan.pasos == p.plan.pasos and not q.disponibles()
+        assert q.plan.impacto_reportado == "no_informado"
 
 
 def test_procedimiento_ausente_bloquea_nota_y_propone_triage(entorno):
@@ -505,7 +606,7 @@ def test_modelo_recibe_subconjunto_y_ejecutor_conserva_registro(entorno):
     r = AgenteEP2(servicio, llm=llm).responder(f"Consulta ticket {TICKET} y su SLA.")
     assert r.estado == "ok"
     assert len(AgenteEP2(servicio).herramientas) == 6
-    opciones = {"tool_choice": "required", "parallel_tool_calls": False}
+    opciones = {"tool_choice": "auto", "parallel_tool_calls": False}
     assert llm.enlaces == [(["consultar_ticket"], opciones), (["consultar_sla"], opciones)]
     assert json.loads(llm.entradas[0][-1].content)["herramientas_habilitadas"] == ["consultar_ticket"]
     assert json.loads(llm.entradas[1][-1].content)["herramientas_habilitadas"] == ["consultar_sla"]
@@ -517,7 +618,7 @@ def test_seleccion_autonoma_entre_herramientas_con_igual_prioridad(entorno):
     r = AgenteEP2(servicio, llm=llm).responder(f"Consulta SLA P2 y activo de {TICKET}.")
     assert r.estado == "ok"
     assert llm.enlaces[0] == (["consultar_sla", "consultar_activo"],
-                             {"tool_choice": "required", "parallel_tool_calls": False})
+                             {"tool_choice": "auto", "parallel_tool_calls": False})
     assert json.loads(llm.entradas[0][-1].content)["herramientas_habilitadas"] == ["consultar_sla", "consultar_activo"]
     assert [t.nombre for t in r.herramientas] == ["consultar_activo", "consultar_sla"]
 
@@ -745,7 +846,7 @@ def test_oferta_impacto_cambia_en_un_ejecutor_y_no_modifica_grafo(entorno, monke
     esperadas = [[n] for n in ("consultar_ticket", "consultar_sla", "analizar_incidente", "buscar_procedimiento", "registrar_nota_ticket")]
     assert [n for n, _ in llm.enlaces] == esperadas
     assert [d["herramientas_ofrecidas"] for d in a.decisiones] == esperadas
-    assert all(d["estado_oferta"] == "acciones_obligatorias" and d["tool_choice"] == "required" for d in a.decisiones)
+    assert all(d["estado_oferta"] == "acciones_obligatorias" and d["tool_choice"] == "auto" for d in a.decisiones)
     assert {(p.id, p.dependencias) for p in r.plan_inicial.pasos} == {(p.id, p.dependencias) for p in r.plan_final.pasos}
     verificar_cero_escrituras(a.servicio)
 
@@ -783,7 +884,7 @@ def test_opciones_de_enlace_no_imponen_parametros_incompatibles():
     assert _opciones_enlace(ModeloSinOpciones(), True) == {}
     llm = modelo(AIMessage(content="OK"))
     assert _opciones_enlace(llm, False) == {"parallel_tool_calls": False}
-    assert _opciones_enlace(llm, True) == {"parallel_tool_calls": False, "tool_choice": "required"}
+    assert _opciones_enlace(llm, True) == {"parallel_tool_calls": False, "tool_choice": "auto"}
 
 
 def test_flexible_usuario_final_solo_recibe_sla_y_procedimiento(entorno):

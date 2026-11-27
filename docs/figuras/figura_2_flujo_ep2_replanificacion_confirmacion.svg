@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="170mm" height="103.88889mm" viewBox="0 0 1440 880" role="img" aria-labelledby="titulo descripcion">
+<title id="titulo">Figura 2. Flujo EP2: replanificación y confirmación humana</title>
+<desc id="descripcion">Escenario simplificado basado en docs/bocetos/ep2.md, docs/arquitectura.md y src/ep2. Una consulta origina el plan y lecturas de ticket, SLA y procedimientos. Un nuevo reporte de impacto del usuario conduce a replanificar y revalidar. La nota solicitada solo se propone y pausa el ejecutor. La decisión humana se toma fuera del LLM. CONFIRMAR pasa por la API humana con permiso, huella, vigencia y revalidación del ticket; solo una validación correcta permite registrar nota y auditoría juntas en SQLite EP2 agent.db. POSPONER no invoca esa API y conserva el estado pendiente sin registrar la nota. itsm.db no se modifica. Tras reiniciar se necesita nueva vista previa y confirmación.</desc>
+<defs><marker id="flecha" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="10" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#000"/></marker></defs>
+<rect width="1440" height="880" fill="#fff"/>
+<text x="720" y="38" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" fill="#000">Figura 2. Flujo EP2: replanificación y confirmación humana</text>
+<text x="720" y="80" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Escenario: cambio de impacto reportado y propuesta de nota solicitada</text>
+<path d="M210,220 L250,220" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M480,220 L520,220" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M780,220 L820,220" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M1080,220 L1120,220" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M1270,315 L1270,365 L170,365 L170,445" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M320,530 L360,530" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M610,530 L705,530 L705,510 L800,510" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M1050,510 L1180,510" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<path d="M485,625 L485,720 L800,720" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#flecha)"/>
+<rect x="20" y="125" width="190" height="190" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="115" y="169" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">1. Consulta</text>
+<text x="115" y="212" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">del usuario</text>
+<text x="115" y="263" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">CLI EP2</text>
+<rect x="250" y="125" width="230" height="190" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="365" y="169" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">2. Plan inicial</text>
+<text x="365" y="216" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">del agente</text>
+<text x="365" y="266" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Tareas previstas</text>
+<rect x="520" y="125" width="260" height="190" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="650" y="159" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">3. Consultar</text>
+<text x="650" y="199" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">ticket y SLA</text>
+<text x="650" y="239" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">y procedimientos</text>
+<text x="650" y="282" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">ITSM RO · FAISS</text>
+<rect x="820" y="125" width="260" height="190" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="950" y="159" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">4. Cambio de</text>
+<text x="950" y="199" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">impacto</text>
+<text x="950" y="239" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Reporte del usuario</text>
+<text x="950" y="282" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">No verificado</text>
+<rect x="1120" y="125" width="300" height="190" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="1270" y="159" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">5. Replanificar</text>
+<text x="1270" y="199" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Tareas y prioridades</text>
+<text x="1270" y="239" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Revalidar consultas</text>
+<text x="1270" y="282" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">y dependencias</text>
+<text x="720" y="347" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Continuación tras las verificaciones</text>
+<rect x="20" y="445" width="300" height="170" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="170" y="478" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">6. Preparar</text>
+<text x="170" y="514" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">propuesta de nota</text>
+<text x="170" y="554" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Vista previa y pausa</text>
+<text x="170" y="590" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Sin registrar la nota</text>
+<polygon points="485,435.0 610.0,530 485,625.0 360.0,530" fill="#fff" stroke="#000" stroke-width="2.2"/>
+<text x="485" y="406" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#000">Fuera del LLM</text>
+<text x="485" y="510" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">7. Decisión</text>
+<text x="485" y="550" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">humana</text>
+<text x="705" y="475" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#000">CONFIRMAR</text>
+<rect x="800" y="425" width="250" height="195" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="925" y="458" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000">API humana</text>
+<text x="925" y="498" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Permiso, huella</text>
+<text x="925" y="535" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">y vigencia</text>
+<text x="925" y="573" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Revalidar ticket</text>
+<text x="925" y="605" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">(solo lectura)</text>
+<text x="1115" y="483" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#000">válida</text>
+<path d="M1180,439 C1180,420 1420,420 1420,439 L1420,616 C1420,635 1180,635 1180,616 Z" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<ellipse cx="1300.0" cy="439" rx="120.0" ry="14" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="1300" y="466" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">8. Registrar</text>
+<text x="1300" y="504" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#000">nota y auditoría</text>
+<text x="1300" y="541" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">SQLite EP2</text>
+<text x="1300" y="576" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">agent.db</text>
+<text x="1300" y="611" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Una transacción</text>
+<text x="640" y="690" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#000">POSPONER</text>
+<rect x="800" y="660" width="300" height="125" fill="#fff" stroke="#000" stroke-width="1.8"/>
+<text x="950" y="692" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#000">9. Conservar</text>
+<text x="950" y="730" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">el estado pendiente</text>
+<text x="950" y="766" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Sin nota ni auditoría</text>
+<text x="485" y="765" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Sin invocar la API</text>
+<text x="720" y="819" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">itsm.db permanece en solo lectura: no cambia el ticket ni su prioridad.</text>
+<text x="720" y="856" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" fill="#000">Si falla la validación, no hay nueva nota. Tras reiniciar: nueva vista previa y confirmación.</text>
+</svg>

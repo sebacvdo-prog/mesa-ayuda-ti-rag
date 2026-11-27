@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 from typing import Callable
 
 from src.ep2.agente import AgenteEP2
+from src.ep3.instrumentacion import registrar_posponer
 from src.ep2.almacenamiento import AlmacenEP2
 from src.ep2.contratos import ContextoEjecucion, DecisionConfirmacion, RespuestaAgenteEP2
 from src.ep2.herramientas import HerramientasEP2
@@ -40,6 +42,7 @@ def resolver_confirmaciones(
         except (EOFError, KeyboardInterrupt):
             valor = ""
         if valor.strip().upper() == "POSPONER":
+            registrar_posponer(agente)
             print("Propuesta pendiente, sin escritura. Al reabrir necesitarás una nueva vista previa y confirmación.")
             continue
         resultado = agente.confirmar_nota(DecisionConfirmacion(
@@ -56,12 +59,16 @@ def main() -> None:
     parser.add_argument("--usuario", default="agente_demo")
     parser.add_argument("--sesion", default="sesion_demo")
     parser.add_argument("--perfil", choices=("agente", "usuario_final"), default="agente")
+    parser.add_argument("--diagnostico-rag", action="store_true",
+                        help="Muestra argumentos técnicos acotados, filtros y descartes RAG; omite texto libre.")
     argumentos = parser.parse_args()
     contexto = ContextoEjecucion(usuario_id=argumentos.usuario, sesion_id=argumentos.sesion,
                                   perfil=argumentos.perfil)
     agente = AgenteEP2(HerramientasEP2(contexto, AlmacenEP2()))
     # Asignación separada mantiene compatibilidad con fábricas inyectadas en tests.
     agente.configurar_trazador(mostrar_trazabilidad)
+    if argumentos.diagnostico_rag:
+        agente.configurar_diagnostico_rag(lambda dato: print("Diagnóstico RAG:", json.dumps(dato, ensure_ascii=False, allow_nan=False)))
     print(f"EP2 · Modelo {agente.opciones.modelo} · Perfil {contexto.perfil}")
     print("Sesión de simulación local, sin autenticación empresarial. /salir termina.")
     print(f"Memoria persistente · Usuario {contexto.usuario_id} · Sesión {contexto.sesion_id}")

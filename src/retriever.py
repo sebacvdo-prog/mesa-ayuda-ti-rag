@@ -16,17 +16,20 @@ El módulo resuelve cuatro cosas:
 
 from __future__ import annotations
 
+import hashlib
+import math
 import os
 import re
 import sqlite3
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field
 
 from src import config
+from src.ep3.instrumentacion import observar_etapa
 from src.guardrails import niveles_visibles  # la política de acceso vive allí
 
 # ---------------------------------------------------------------------------
@@ -39,13 +42,14 @@ class FragmentoRecuperado(BaseModel):
 
     Attributes:
         documento: Fragmento de LangChain con su texto y metadatos.
-        puntaje: Score de relevancia de LangChain; mayor es mejor. No es probabilidad.
+        puntaje: Score de relevancia válido entre 0 y 1; mayor es mejor.
+            Conserva la escala calibrada de LangChain; no es probabilidad.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     documento: Document
-    puntaje: float = Field(ge=-1.0, le=1.0)
+    puntaje: float = Field(ge=0.0, le=1.0, allow_inf_nan=False)
 
     @property
     def titulo(self) -> str:
@@ -66,6 +70,15 @@ class FragmentoRecuperado(BaseModel):
     def cita(self) -> str:
         """Cita corta lista para el bloque ``Fuente:`` de la respuesta."""
         return f"{self.titulo} · {self.documento.metadata.get('fecha_vigencia', 's/f')}"
+
+
+class FragmentoIdentificado(FragmentoRecuperado):
+    """Coincidencia exacta de catálogo; no se le atribuye relevancia semántica."""
+
+    puntaje: None = None
+
+
+_CODIGO_KB = re.compile(r"(?<![A-Z0-9_-])KB-[A-Z]{2,12}-\d{2,4}(?![A-Z0-9_-])", re.IGNORECASE)
 
 
 def _parsear_fecha(valor: Any) -> date:
@@ -301,6 +314,81 @@ class RecuperadorVectorial:
         self.ruta_indice = Path(ruta_indice)
         self.top_k = top_k
         self.umbral = config.umbral_similitud() if umbral is None else umbral
+        # Opt-in, solo RAM. La vista segura nunca recibe texto ni argumentos libres.
+        self.diagnosticar: Callable[[dict], None] | None = None
+
+    def _diagnostico(self, consulta: str, perfil: str, clasificacion: str | None, metodo: str) -> dict:
+        ruta = clasificacion or clasificar_consulta(consulta)
+        fuente = filtro_de_fuente(ruta)
+        return {"version": 1, "metodo": metodo,
+                "argumentos": {"consulta": consulta if _CODIGO_KB.fullmatch(consulta) else "TEXTO_OMITIDO",
+                               "consulta_sha256": hashlib.sha256(consulta.encode()).hexdigest(),
+                               "consulta_caracteres": len(consulta), "fuente": clasificacion if clasificacion in ("interna", "externa", "mixta") else "automatica"},
+                "perfil": perfil if perfil in ("agente", "usuario_final") else "usuario_final",
+                "clasificacion": ruta if ruta in ("interna", "externa", "mixta") else "DESCONOCIDA",
+                "filtro_fuente": {"fuente": fuente if fuente in ("interna", "externa") else "DESCONOCIDA"} if fuente else None,
+                "umbral": self.umbral, "top_k": self.top_k,
+                "k_candidatos": self.top_k * 5, "niveles_visibles": list(niveles_visibles(perfil)),
+                "margen_vigencia": config.MARGEN_REORDENAMIENTO,
+                "candidatos_antes_filtros": [], "conteos": {}, "motivo": None}
+
+    @staticmethod
+    def _vista_candidato(documento: Document, puntaje: float | None, perfil: str, distancia=None) -> dict:
+        meta = documento.metadata
+        autorizado = meta.get("nivel_acceso", "publico_interno") in niveles_visibles(perfil)
+        # Solo nombres del corpus conocido, sin rutas arbitrarias o textos del docstore.
+        nombres = {p.name for ruta in (config.DIR_INTERNOS, config.DIR_EXTERNOS) for p in ruta.glob("*.md")}
+        nombre = meta.get("documento")
+        return {"documento": nombre if autorizado and nombre in nombres else "OMITIDO",
+                "fuente": meta.get("fuente") if meta.get("fuente") in ("interna", "externa") else "DESCONOCIDA",
+                "acceso_permitido": autorizado,
+                "puntaje": float(puntaje) if puntaje is not None and math.isfinite(puntaje) else None,
+                "distancia_faiss": float(distancia) if distancia is not None and math.isfinite(distancia) else None}
+
+    def _emitir_diagnostico(self, datos: dict | None) -> None:
+        if datos is not None and self.diagnosticar is not None:
+            try:
+                self.diagnosticar(datos)
+            except Exception:
+                # La vista no modifica resultados ni propaga excepciones con contenido.
+                pass
+
+    @observar_etapa('rag')
+    def buscar_procedimiento(self, consulta: str, perfil: str = "agente", fuente: str = "automatica") -> list[FragmentoRecuperado]:
+        """Entrada EP2: códigos KB exactos por título; el resto conserva el RAG."""
+        clasificacion = None if fuente == "automatica" else fuente
+        codigos = set(m.group().upper() for m in _CODIGO_KB.finditer(consulta))
+        if not codigos:
+            return self.buscar(consulta, perfil=perfil, clasificacion=clasificacion)
+        datos = self._diagnostico(consulta, perfil, clasificacion, "identificador") if self.diagnosticar else None
+        from langchain_community.vectorstores import FAISS
+
+        encontrados = []
+        if len(codigos) == 1 and isinstance(self.almacen, FAISS):
+            for identificador in self.almacen.index_to_docstore_id.values():
+                doc = self.almacen.docstore.search(identificador)
+                if isinstance(doc, Document):
+                    coincidencia = _CODIGO_KB.match(str(doc.metadata.get("titulo", "")))
+                    if coincidencia and coincidencia.group().upper() in codigos:
+                        encontrados.append(FragmentoIdentificado(documento=doc))
+        ruta = clasificacion or clasificar_consulta(consulta)
+        filtro = filtro_de_fuente(ruta)
+        por_fuente = [f for f in encontrados if filtro is None or f.documento.metadata.get("fuente") == filtro]
+        permitidos = filtrar_por_metadatos(por_fuente, perfil=perfil)
+        # No elegir arbitrariamente si el mismo código identifica documentos distintos.
+        ambiguo = len({f.nombre_documento for f in permitidos}) > 1 or len(codigos) > 1
+        resultado = [] if ambiguo else sorted(permitidos, key=lambda f: (
+            f.fecha_vigencia, -f.documento.metadata.get("chunk", 0) if type(f.documento.metadata.get("chunk", 0)) is int else 0), reverse=True)[:self.top_k]
+        if datos is not None:
+            datos["candidatos_antes_filtros"] = [self._vista_candidato(f.documento, None, perfil) for f in encontrados[:20]]
+            datos["conteos"] = {"candidatos": len(encontrados), "fuente": len(por_fuente),
+                                "permisos": len(permitidos), "devueltos": len(resultado)}
+            datos["umbral_aplicado"] = False  # Es identidad documental, no similitud.
+            datos["motivo"] = ("IDENTIFICADOR_AMBIGUO" if ambiguo else "RECUPERADO" if resultado else
+                               "IDENTIFICADOR_NO_ENCONTRADO" if not encontrados else
+                               "FILTRO_FUENTE" if not por_fuente else "FILTRO_PERMISOS")
+        self._emitir_diagnostico(datos)
+        return resultado
 
     @property
     def almacen(self) -> Any:
@@ -357,7 +445,7 @@ class RecuperadorVectorial:
         return almacen
 
     def _buscar_crudo(
-        self, consulta: str, k: int, filtro: dict[str, str] | None
+        self, consulta: str, k: int, filtro: dict[str, str] | None, *, diagnostico: dict | None = None, perfil: str = "agente"
     ) -> list[FragmentoRecuperado]:
         """Ejecuta la búsqueda por similitud contra FAISS.
 
@@ -369,19 +457,47 @@ class RecuperadorVectorial:
         Returns:
             Fragmentos con su puntaje de relevancia normalizado.
         """
-        try:
-            crudos = self.almacen.similarity_search_with_relevance_scores(
-                consulta, k=k, filter=filtro
-            )
-        except TypeError:
-            # Versiones que no aceptan el filtro por metadatos: se filtra después.
-            crudos = self.almacen.similarity_search_with_relevance_scores(consulta, k=k)
+        from langchain_community.vectorstores import FAISS
 
-        return [
-            FragmentoRecuperado(documento=documento, puntaje=float(puntaje))
-            for documento, puntaje in crudos
-        ]
+        almacen = self.almacen
+        if isinstance(almacen, FAISS):
+            # FAISS L2 entrega distancias al cuadrado. Conservar la conversión
+            # sobre la que se calibró el umbral, sin cambiarla por coseno.
+            # La API de relevancia de LangChain advierte y vuelca documentos si
+            # un candidato lejano da un score negativo; convertir antes de validar.
+            convertir = almacen._select_relevance_score_fn()
+            if diagnostico is not None:
+                # Un único embedding, dos búsquedas locales: antes y después de fuente.
+                vector = almacen._embed_query(consulta)
+                antes = almacen.similarity_search_with_score_by_vector(vector, k=k)
+                diagnostico["candidatos_antes_filtros"] = [
+                    self._vista_candidato(d, float(convertir(x)), perfil, x) for d, x in antes[:20]]
+                distancias = almacen.similarity_search_with_score_by_vector(vector, k=k, filter=filtro, fetch_k=max(20, k))
+                diagnostico["conteos"]["antes_fuente"] = len(antes)
+            else:
+                distancias = almacen.similarity_search_with_score(
+                    consulta, k=k, filter=filtro, fetch_k=max(20, k),
+                )
+            crudos = [(documento, convertir(distancia)) for documento, distancia in distancias]
+        else:
+            try:
+                crudos = almacen.similarity_search_with_relevance_scores(consulta, k=k, filter=filtro)
+            except TypeError:
+                # Adaptadores sin filtro: los permisos se comprueban después.
+                crudos = almacen.similarity_search_with_relevance_scores(consulta, k=k)
 
+        fragmentos = []
+        for documento, puntaje in crudos:
+            puntaje = float(puntaje)
+            # No recortar a 0/1 ni reescalar: podría admitir candidatos inválidos
+            # con umbral cero o alterar los resultados de la calibración.
+            if math.isfinite(puntaje) and 0 <= puntaje <= 1:
+                fragmentos.append(FragmentoRecuperado(documento=documento, puntaje=puntaje))
+        if diagnostico is not None:
+            diagnostico["conteos"].update(tras_fuente_faiss=len(crudos), scores_validos=len(fragmentos))
+        return fragmentos
+
+    @observar_etapa('rag')
     def buscar(
         self,
         consulta: str,
@@ -406,16 +522,26 @@ class RecuperadorVectorial:
         Returns:
             Hasta ``top_k`` fragmentos, ordenados por pertinencia y vigencia.
         """
+        clasificacion_solicitada = clasificacion
         clasificacion = clasificacion or clasificar_consulta(consulta)
         fuente = filtro_de_fuente(clasificacion)
 
         filtro: dict[str, str] | None = {"fuente": fuente} if fuente else None
-        candidatos = self._buscar_crudo(consulta, k=self.top_k * 5, filtro=filtro)
-
-        candidatos = filtrar_por_metadatos(candidatos, fuente=fuente, perfil=perfil)
-        candidatos = aplicar_umbral(candidatos, self.umbral)
-        candidatos = reordenar_por_vigencia(candidatos)
-        return candidatos[: self.top_k]
+        # Conservar el argumento original para distinguir automatica de una ruta explícita.
+        datos = self._diagnostico(consulta, perfil, clasificacion_solicitada, "semantica") if self.diagnosticar else None
+        candidatos = self._buscar_crudo(consulta, k=self.top_k * 5, filtro=filtro,
+                                       diagnostico=datos, perfil=perfil)
+        por_fuente = [f for f in candidatos if fuente is None or f.documento.metadata.get("fuente") == fuente]
+        permitidos = filtrar_por_metadatos(por_fuente, fuente=fuente, perfil=perfil)
+        suficientes = aplicar_umbral(permitidos, self.umbral)
+        resultado = reordenar_por_vigencia(suficientes)[: self.top_k]
+        if datos is not None:
+            datos["conteos"].update(fuente=len(por_fuente), permisos=len(permitidos), umbral=len(suficientes), devueltos=len(resultado))
+            datos["umbral_aplicado"] = True
+            datos["motivo"] = ("RECUPERADO" if resultado else "SIN_CANDIDATOS_VALIDOS" if not candidatos else
+                               "FILTRO_FUENTE" if not por_fuente else "FILTRO_PERMISOS" if not permitidos else "UMBRAL")
+        self._emitir_diagnostico(datos)
+        return resultado
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,797 @@
+{
+  "$defs": {
+    "DetallesV2": {
+      "additionalProperties": false,
+      "properties": {
+        "herramienta": {
+          "anyOf": [
+            {
+              "enum": [
+                "consultar_ticket",
+                "consultar_sla",
+                "consultar_activo",
+                "buscar_procedimiento",
+                "analizar_incidente",
+                "registrar_nota_ticket"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Herramienta"
+        },
+        "intento": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intento"
+        },
+        "espera_prevista_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Espera Prevista Ms"
+        },
+        "http_status": {
+          "anyOf": [
+            {
+              "maximum": 599,
+              "minimum": 100,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Http Status"
+        },
+        "plan_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Id"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        },
+        "pasos_total": {
+          "anyOf": [
+            {
+              "maximum": 12,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pasos Total"
+        },
+        "pasos_completados": {
+          "anyOf": [
+            {
+              "maximum": 12,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pasos Completados"
+        },
+        "pasos_bloqueados": {
+          "anyOf": [
+            {
+              "maximum": 12,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pasos Bloqueados"
+        },
+        "cambios_total": {
+          "anyOf": [
+            {
+              "maximum": 30,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cambios Total"
+        },
+        "cambio_codigo": {
+          "anyOf": [
+            {
+              "enum": [
+                "ACTIVO_CONSULTADO",
+                "ACTIVO_NO_ENCONTRADO",
+                "ALMACENAMIENTO_NO_DISPONIBLE",
+                "ARGUMENTOS_INVALIDOS",
+                "AUTORIZACION_NO_RECUPERADA",
+                "CONFIRMACION_EXPIRADA",
+                "CONFIRMACION_NO_VALIDA",
+                "CONFIRMACION_REQUERIDA",
+                "CONSULTA_INICIO",
+                "CONTENIDO_NO_CONFIRMADO",
+                "CONTENIDO_SENSIBLE",
+                "CREDENCIALES",
+                "DENEGADO",
+                "DEPENDENCIA_BLOQUEADA",
+                "EJECUCION_INTERRUMPIDA",
+                "ERROR_CONSULTA",
+                "ERROR_EJECUCION",
+                "ERROR_HERRAMIENTA",
+                "ERROR_MODELO",
+                "ESCALAMIENTO_PROPUESTO",
+                "FORMATO_INVALIDO",
+                "FUERA_DE_ALCANCE",
+                "IDEMPOTENCIA_CONFLICTO",
+                "IMPACTO_REPORTADO",
+                "INCIDENTE_ANALIZADO",
+                "LECTURA_INTERRUMPIDA",
+                "LIMITE_EJECUCION",
+                "NOTAS_CONSULTADAS",
+                "NOTA_CANCELADA",
+                "NOTA_ESPERA_VERIFICACIONES",
+                "NOTA_REGISTRADA",
+                "NOTA_REUTILIZADA",
+                "NOTA_YA_REGISTRADA",
+                "NUEVA_VISTA_PREVIA",
+                "OBSERVACION",
+                "OK",
+                "OTRO",
+                "PASO_ANADIDO",
+                "PASO_INICIADO",
+                "PERMISO_REQUERIDO",
+                "PLAN_ACTUALIZADO",
+                "PLAN_BLOQUEADO",
+                "PLAN_CREADO",
+                "PLAN_DEPENDENCIA_PENDIENTE",
+                "PLAN_FINAL",
+                "PLAN_INCOMPLETO",
+                "PLAN_INICIAL",
+                "PLAN_NOTA_NO_SOLICITADA",
+                "PLAN_NO_PREVISTO",
+                "PLAN_PASO_BLOQUEADO",
+                "PLAN_PASO_COMPLETADO",
+                "PLAN_PASO_YA_EJECUTADO",
+                "PLAN_PRIORIDAD_NO_COINCIDE",
+                "PLAN_PRIORIDAD_PENDIENTE",
+                "PLAN_RECUPERADO",
+                "PLAN_SOLO_ESTADO",
+                "PLAN_TICKET_DISTINTO",
+                "PRIORIDAD_PROPUESTA",
+                "PROCEDIMIENTO_RECUPERADO",
+                "REINTENTO_EXPLICITO",
+                "REPLANIFICACION_ERROR",
+                "REPLANIFICACION_IMPACTO",
+                "REPLANIFICACION_PRIORIDAD_REGISTRADA",
+                "RESPUESTA_FINAL",
+                "REVALIDAR_IMPACTO",
+                "SELECCION_AUTONOMA",
+                "SELECCION_NO_PERMITIDA",
+                "SIN_CONTEXTO",
+                "SIN_PROCEDIMIENTO",
+                "SLA_CONSULTADO",
+                "SLA_NO_ENCONTRADO",
+                "SLA_VERIFICADO_EN_ANALISIS",
+                "TICKET_CONSULTADO",
+                "TICKET_NO_ENCONTRADO",
+                "TIEMPO_AGOTADO"
+              ],
+              "type": "string"
+            },
+            {
+              "pattern": "^HTTP_[1-5][0-9]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cambio Codigo"
+        },
+        "llamada_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Llamada Id"
+        },
+        "solicitud_id_tecnica": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solicitud Id Tecnica"
+        },
+        "frontera": {
+          "anyOf": [
+            {
+              "enum": [
+                "llm",
+                "cadena"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frontera"
+        },
+        "clase_error": {
+          "anyOf": [
+            {
+              "enum": [
+                "limite_temporal",
+                "autenticacion",
+                "timeout",
+                "proveedor",
+                "validacion",
+                "interrupcion",
+                "ejecucion"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clase Error"
+        },
+        "tokens_entrada": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Entrada"
+        },
+        "tokens_salida": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Salida"
+        },
+        "origen_tokens": {
+          "anyOf": [
+            {
+              "enum": [
+                "proveedor",
+                "no_disponible"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origen Tokens"
+        },
+        "espera_real_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Espera Real Ms"
+        },
+        "cpu_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cpu Ms"
+        },
+        "ram_inicio_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ram Inicio Bytes"
+        },
+        "ram_fin_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ram Fin Bytes"
+        },
+        "metodo_ram": {
+          "anyOf": [
+            {
+              "enum": [
+                "working_set",
+                "rss_proc",
+                "no_disponible"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metodo Ram"
+        },
+        "rag_metodo": {
+          "anyOf": [
+            {
+              "enum": [
+                "identificador",
+                "semantica"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rag Metodo"
+        },
+        "rag_devueltos": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rag Devueltos"
+        },
+        "puntaje_maximo": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Puntaje Maximo"
+        },
+        "etapa": {
+          "anyOf": [
+            {
+              "enum": [
+                "recuperar",
+                "guardar",
+                "historial"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Etapa"
+        },
+        "decision_indice": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Indice"
+        },
+        "herramientas_ofrecidas": {
+          "anyOf": [
+            {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Herramientas Ofrecidas"
+        }
+      },
+      "title": "DetallesV2",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version_esquema": {
+      "const": 2,
+      "default": 2,
+      "title": "Version Esquema",
+      "type": "integer"
+    },
+    "ejecucion_id": {
+      "format": "uuid",
+      "title": "Ejecucion Id",
+      "type": "string"
+    },
+    "sesion_ref": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sesion Ref"
+    },
+    "tipo_ejecucion": {
+      "enum": [
+        "real",
+        "simulada",
+        "historica"
+      ],
+      "title": "Tipo Ejecucion",
+      "type": "string"
+    },
+    "pipeline": {
+      "enum": [
+        "ep1",
+        "ep2"
+      ],
+      "title": "Pipeline",
+      "type": "string"
+    },
+    "inicio_utc": {
+      "format": "date-time",
+      "title": "Inicio Utc",
+      "type": "string"
+    },
+    "evento_id": {
+      "format": "uuid",
+      "title": "Evento Id",
+      "type": "string"
+    },
+    "secuencia": {
+      "minimum": 1,
+      "title": "Secuencia",
+      "type": "integer"
+    },
+    "fecha_utc": {
+      "format": "date-time",
+      "title": "Fecha Utc",
+      "type": "string"
+    },
+    "evento": {
+      "enum": [
+        "consulta_inicio",
+        "consulta_fin",
+        "herramienta_fin",
+        "modelo_error",
+        "modelo_reintento",
+        "modelo_inicio",
+        "modelo_fin",
+        "llamada_fin",
+        "espera_fin",
+        "plan_inicial",
+        "plan_actualizado",
+        "plan_final",
+        "observacion",
+        "rag_fin",
+        "memoria_fin",
+        "decision",
+        "confirmacion_inicio",
+        "confirmacion_fin",
+        "posponer"
+      ],
+      "title": "Evento",
+      "type": "string"
+    },
+    "componente": {
+      "enum": [
+        "agente",
+        "herramienta",
+        "modelo",
+        "planificacion",
+        "rag",
+        "memoria",
+        "interfaz_humana"
+      ],
+      "title": "Componente",
+      "type": "string"
+    },
+    "duracion_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duracion Ms"
+    },
+    "estado": {
+      "enum": [
+        "ok",
+        "error",
+        "denegado",
+        "sin_contexto",
+        "limite",
+        "requiere_confirmacion",
+        "cancelada",
+        "no_encontrado",
+        "conflicto",
+        "expirada",
+        "info",
+        "reintentando"
+      ],
+      "title": "Estado",
+      "type": "string"
+    },
+    "codigo": {
+      "anyOf": [
+        {
+          "enum": [
+            "ACTIVO_CONSULTADO",
+            "ACTIVO_NO_ENCONTRADO",
+            "ALMACENAMIENTO_NO_DISPONIBLE",
+            "ARGUMENTOS_INVALIDOS",
+            "AUTORIZACION_NO_RECUPERADA",
+            "CONFIRMACION_EXPIRADA",
+            "CONFIRMACION_NO_VALIDA",
+            "CONFIRMACION_REQUERIDA",
+            "CONSULTA_INICIO",
+            "CONTENIDO_NO_CONFIRMADO",
+            "CONTENIDO_SENSIBLE",
+            "CREDENCIALES",
+            "DENEGADO",
+            "DEPENDENCIA_BLOQUEADA",
+            "EJECUCION_INTERRUMPIDA",
+            "ERROR_CONSULTA",
+            "ERROR_EJECUCION",
+            "ERROR_HERRAMIENTA",
+            "ERROR_MODELO",
+            "ESCALAMIENTO_PROPUESTO",
+            "FORMATO_INVALIDO",
+            "FUERA_DE_ALCANCE",
+            "IDEMPOTENCIA_CONFLICTO",
+            "IMPACTO_REPORTADO",
+            "INCIDENTE_ANALIZADO",
+            "LECTURA_INTERRUMPIDA",
+            "LIMITE_EJECUCION",
+            "NOTAS_CONSULTADAS",
+            "NOTA_CANCELADA",
+            "NOTA_ESPERA_VERIFICACIONES",
+            "NOTA_REGISTRADA",
+            "NOTA_REUTILIZADA",
+            "NOTA_YA_REGISTRADA",
+            "NUEVA_VISTA_PREVIA",
+            "OBSERVACION",
+            "OK",
+            "OTRO",
+            "PASO_ANADIDO",
+            "PASO_INICIADO",
+            "PERMISO_REQUERIDO",
+            "PLAN_ACTUALIZADO",
+            "PLAN_BLOQUEADO",
+            "PLAN_CREADO",
+            "PLAN_DEPENDENCIA_PENDIENTE",
+            "PLAN_FINAL",
+            "PLAN_INCOMPLETO",
+            "PLAN_INICIAL",
+            "PLAN_NOTA_NO_SOLICITADA",
+            "PLAN_NO_PREVISTO",
+            "PLAN_PASO_BLOQUEADO",
+            "PLAN_PASO_COMPLETADO",
+            "PLAN_PASO_YA_EJECUTADO",
+            "PLAN_PRIORIDAD_NO_COINCIDE",
+            "PLAN_PRIORIDAD_PENDIENTE",
+            "PLAN_RECUPERADO",
+            "PLAN_SOLO_ESTADO",
+            "PLAN_TICKET_DISTINTO",
+            "PRIORIDAD_PROPUESTA",
+            "PROCEDIMIENTO_RECUPERADO",
+            "REINTENTO_EXPLICITO",
+            "REPLANIFICACION_ERROR",
+            "REPLANIFICACION_IMPACTO",
+            "REPLANIFICACION_PRIORIDAD_REGISTRADA",
+            "RESPUESTA_FINAL",
+            "REVALIDAR_IMPACTO",
+            "SELECCION_AUTONOMA",
+            "SELECCION_NO_PERMITIDA",
+            "SIN_CONTEXTO",
+            "SIN_PROCEDIMIENTO",
+            "SLA_CONSULTADO",
+            "SLA_NO_ENCONTRADO",
+            "SLA_VERIFICADO_EN_ANALISIS",
+            "TICKET_CONSULTADO",
+            "TICKET_NO_ENCONTRADO",
+            "TIEMPO_AGOTADO"
+          ],
+          "type": "string"
+        },
+        {
+          "pattern": "^HTTP_[1-5][0-9]{2}$",
+          "type": "string"
+        }
+      ],
+      "title": "Codigo",
+      "type": "string"
+    },
+    "detalles": {
+      "$ref": "#/$defs/DetallesV2"
+    },
+    "correlacion": {
+      "enum": [
+        "estable",
+        "desactivada"
+      ],
+      "title": "Correlacion",
+      "type": "string"
+    },
+    "clave_id": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{16}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Clave Id"
+    },
+    "categoria": {
+      "default": "interactiva",
+      "enum": [
+        "interactiva",
+        "ticket_sla",
+        "rag_kb",
+        "impacto",
+        "nota",
+        "posponer",
+        "sin_procedimiento",
+        "reintento",
+        "seguridad",
+        "benchmark"
+      ],
+      "title": "Categoria",
+      "type": "string"
+    },
+    "operacion": {
+      "default": "consulta",
+      "enum": [
+        "consulta",
+        "confirmacion",
+        "posponer"
+      ],
+      "title": "Operacion",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ejecucion_id",
+    "tipo_ejecucion",
+    "pipeline",
+    "inicio_utc",
+    "evento_id",
+    "secuencia",
+    "fecha_utc",
+    "evento",
+    "componente",
+    "estado",
+    "codigo",
+    "correlacion"
+  ],
+  "title": "EventoV2",
+  "type": "object"
+}

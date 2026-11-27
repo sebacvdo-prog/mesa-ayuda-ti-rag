@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "fecha_utc": "2026-11-27T15:01:38.866575+00:00",
+  "git_head": "8d248c3b9aa90960db13a5de6f9709e91e60637b",
+  "rama": "master",
+  "origin": "https://github.com/sebacvdo-prog/mesa-ayuda-ti-rag.git",
+  "rama_predeterminada_github": "master",
+  "master_github_verificado": "8d248c3b9aa90960db13a5de6f9709e91e60637b",
+  "alcance": {
+    "archivos_publicables_totales": 154,
+    "rastreados_existentes": 86,
+    "nuevos": 68,
+    "modificados": 24,
+    "rutas_commit_propuesto": 92,
+    "blobs_historial_local": 209
+  },
+  "busqueda": {
+    "patrones": [
+      "groq",
+      "google",
+      "github",
+      "openai_langsmith",
+      "private_key",
+      "jwt",
+      "aws",
+      "credential_url",
+      "ruta_personal"
+    ],
+    "comparacion_credenciales_y_claves_locales": true,
+    "nunca_exportar_valores_ni_huellas_de_secretos": true,
+    "coincidencias": [],
+    "archivos_sensibles_rastreados_o_nuevos": [],
+    "historial_coincidencias": [],
+    "historial_archivos_sensibles": []
+  },
+  "integridad": {
+    "sin_archivos_iniciales_ausentes": true,
+    "sin_conflictos_indice": true,
+    "sin_marcadores_conflicto": true,
+    "json_validos": true,
+    "codigo_pruebas_evaluadores_sin_cambios_en_preparacion": true,
+    "codigo_coincide_regresion": true,
+    "artefactos_protegidos_sin_cambios": true,
+    "indice_habitual_vacio": true,
+    "comprobacion_ignores": {
+      ".env": true,
+      ".env.production": true,
+      "test.key": true,
+      "test.pem": true,
+      "test.p12": true,
+      "test.pfx": true,
+      "test.jks": true,
+      "data/itsm.db": true,
+      "data/test.sqlite-wal": true,
+      "storage/ep2/agent.db": true,
+      "storage/ep3/claves/sesion.key": true,
+      ".cache/ep3/reporte.json": true,
+      ".venv/pyvenv.cfg": true,
+      "tests/__pycache__/x.pyc": true,
+      "ejecucion.log": true,
+      "respaldo.bak": true,
+      "temporal.tmp": true,
+      "plantilla_env_publicable": true
+    }
+  },
+  "sanitizacion_logs": [
+    {
+      "archivo": "docs/evidencias/ingest_log.txt",
+      "rutas_sustituidas": 1
+    },
+    {
+      "archivo": "docs/evidencias/seed_db_log.txt",
+      "rutas_sustituidas": 1
+    },
+    {
+      "archivo": "docs/evidencias/test_pytest_log.txt",
+      "rutas_sustituidas": 4
+    }
+  ],
+  "imagenes": [
+    {
+      "archivo": "docs/figuras/figura_1_arquitectura_ep2_simplificada.png",
+      "chunks": [
+        "IDAT",
+        "IEND",
+        "IHDR",
+        "pHYs"
+      ],
+      "metadatos_texto_exif": false
+    },
+    {
+      "archivo": "docs/figuras/figura_2_flujo_ep2_replanificacion_confirmacion.png",
+      "chunks": [
+        "IDAT",
+        "IEND",
+        "IHDR",
+        "pHYs"
+      ],
+      "metadatos_texto_exif": false
+    }
+  ],
+  "fixtures": "Corpus y seed declarados ficticios; datos de prueba academicos conservados. Sin extraccion de datos operativos.",
+  "validacion": {
+    "pruebas": {
+      "tests": 820,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 820
+    },
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0,
+      "ipc_socketpair_local": 8
+    },
+    "aprobado": true,
+    "pip_check_exit_code": 0
+  },
+  "excluidos": {
+    ".env y variantes": "credenciales y configuracion privada",
+    "*.key y formatos de claves": "HMAC/material privado",
+    "SQLite y auxiliares": "bases operativas o locales",
+    "storage/": "FAISS, memoria y telemetria local",
+    ".cache/": "snapshots y logs crudos; incluye respaldo de originales",
+    ".venv/ y caches": "entorno regenerable y rutas locales"
+  },
+  "limites": [
+    "No detecta universalmente cualquier formato de secreto.",
+    "Historial: solo objetos alcanzables desde referencias locales, no reflogs ni objetos remotos no descargados.",
+    "Rutas personales anteriores permanecen en commits historicos; no se reescribio el historial.",
+    "No ejecucion real Groq EP3 ni capturas o aceptacion visual manual."
+  ]
+}

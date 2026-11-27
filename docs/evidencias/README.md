@@ -2,7 +2,24 @@
 
 Este índice distingue pruebas automatizadas, recuperación local, llamadas reales
 y registros históricos. Su actualización documental no constituye una ejecución
-nueva. Los reportes originales y los logs se conservan sin modificar.
+nueva. Los resultados históricos se conservan. En la preparación EP3 del
+27 de noviembre de 2026 se sustituyeron exclusivamente las rutas personales de
+los tres logs EP1 por marcadores portables; los originales se respaldaron en
+`.cache/ep3/publicacion-20261127T145010Z/fuentes_previas.zip`, excluido de Git.
+
+## EP3 — Evidencia publicable y reproducción
+
+El [índice EP3](ep3/README.md) separa pruebas automatizadas, evaluación offline
+simulada, rendimiento, seguridad/privacidad, Groq real y capturas del dashboard.
+Incluye JSON/CSV derivados de corridas existentes y una nueva regresión de
+preparación, con procedencia, campos permitidos y límites. No se publican bases
+SQLite, claves HMAC, registros crudos del entorno ni transcripciones.
+
+La [Etapa 1](ep3_etapa1.md), el [desarrollo técnico](ep3_desarrollo_tecnico.md)
+y los [hallazgos](ep3_hallazgos.md) se mantienen como antecedentes de sus propias
+corridas. No sumar sus muestras como si fueran una ejecución única. La
+[preparación para GitHub](../ep3_publicacion.md) identifica también las mejoras
+EP2 que ya estaban pendientes antes de comenzar EP3.
 
 ## Cierre técnico EP2 — Etapa 4
 

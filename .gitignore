@@ -1,6 +1,12 @@
 # --- Secretos ---
 .env
+.env.*
+!.env.example
 *.key
+*.pem
+*.p12
+*.pfx
+*.jks
 
 # --- Python ---
 __pycache__/
@@ -12,11 +18,26 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+.ruff_cache/
+.mypy_cache/
 
 # --- Artefactos generados en tiempo de ejecución ---
 data/itsm.db
 storage/
 .cache/
+# Bases operativas y auxiliares: publicar scripts/contratos, nunca sus datos.
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+# Salidas locales; las evidencias sanitizadas en docs usan JSON/CSV/Markdown.
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
 
 # --- Sistema operativo / editores ---
 .DS_Store

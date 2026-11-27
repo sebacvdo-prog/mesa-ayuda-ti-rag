@@ -161,18 +161,18 @@ class HerramientasEP2:
         self, entrada: ConsultaProcedimiento, recuperador: RecuperadorVectorial,
     ) -> ResultadoHerramienta:
         entrada = ConsultaProcedimiento.model_validate(entrada)
-        clasificacion = None if entrada.fuente == "automatica" else entrada.fuente
-        fragmentos = recuperador.buscar(
-            entrada.consulta, perfil=self._contexto.perfil, clasificacion=clasificacion,
+        fragmentos = recuperador.buscar_procedimiento(
+            entrada.consulta, perfil=self._contexto.perfil, fuente=entrada.fuente,
         )
         if not fragmentos:
             return ResultadoHerramienta(estado="no_encontrado", codigo="SIN_PROCEDIMIENTO",
                                         mensaje="No se recuperó un procedimiento con el umbral vigente.")
         datos = [{"documento": f.nombre_documento, "titulo": f.titulo,
                   "fecha": str(f.fecha_vigencia), "puntaje": f.puntaje,
+                  "coincidencia": "identificador" if f.puntaje is None else "semantica",
                   "texto": guardrails.enmascarar_texto(f.documento.page_content)} for f in fragmentos]
         return ResultadoHerramienta(estado="ok", codigo="PROCEDIMIENTO_RECUPERADO",
-                                    mensaje="Fragmentos recuperados con los permisos y umbral vigentes.",
+                                    mensaje="Fragmentos recuperados por identificador exacto o relevancia, con fuente y permisos vigentes.",
                                     datos={"fragmentos": datos},
                                     procedencia=tuple(dict.fromkeys(f"corpus:{f.nombre_documento}" for f in fragmentos)))
 

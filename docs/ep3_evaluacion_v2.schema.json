@@ -1,0 +1,101 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "version_esquema": {
+      "const": 2,
+      "default": 2,
+      "title": "Version Esquema",
+      "type": "integer"
+    },
+    "evaluacion_id": {
+      "format": "uuid",
+      "title": "Evaluacion Id",
+      "type": "string"
+    },
+    "ejecucion_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ejecucion Id"
+    },
+    "tipo_ejecucion": {
+      "enum": [
+        "real",
+        "simulada",
+        "historica"
+      ],
+      "title": "Tipo Ejecucion",
+      "type": "string"
+    },
+    "caso": {
+      "enum": [
+        "ticket_sla",
+        "rag_kb",
+        "impacto",
+        "nota",
+        "posponer",
+        "sin_procedimiento",
+        "reintento",
+        "seguridad"
+      ],
+      "title": "Caso",
+      "type": "string"
+    },
+    "variante": {
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Variante",
+      "type": "integer"
+    },
+    "metrica": {
+      "enum": [
+        "exactitud_hechos",
+        "acierto_documental",
+        "cumplimiento_restricciones",
+        "consistencia"
+      ],
+      "title": "Metrica",
+      "type": "string"
+    },
+    "metodo": {
+      "enum": [
+        "referencia_estructurada",
+        "referencia_documental",
+        "invariante",
+        "acuerdo_entre_variantes"
+      ],
+      "title": "Metodo",
+      "type": "string"
+    },
+    "valor": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Valor",
+      "type": "number"
+    },
+    "muestras": {
+      "minimum": 1,
+      "title": "Muestras",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "evaluacion_id",
+    "tipo_ejecucion",
+    "caso",
+    "variante",
+    "metrica",
+    "metodo",
+    "valor",
+    "muestras"
+  ],
+  "title": "Evaluacion",
+  "type": "object"
+}

@@ -1,0 +1,688 @@
+{
+  "version": 2,
+  "fecha_utc": "2026-11-26T19:39:54.522433+00:00",
+  "tipo_ejecucion": "simulada",
+  "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+  "dependencias": {
+    "langchain": "0.3.30",
+    "langchain-core": "0.3.86",
+    "langchain-openai": "0.3.35",
+    "faiss-cpu": "1.15.1",
+    "streamlit": "1.66.0",
+    "pydantic": "2.14.1"
+  },
+  "casos": 26,
+  "metricas": {
+    "acierto_documental": {
+      "registros": 9,
+      "muestras": 9,
+      "promedio_ponderado": 1.0
+    },
+    "consistencia": {
+      "registros": 6,
+      "muestras": 18,
+      "promedio_ponderado": 1.0
+    },
+    "cumplimiento_restricciones": {
+      "registros": 26,
+      "muestras": 26,
+      "promedio_ponderado": 1.0
+    },
+    "exactitud_hechos": {
+      "registros": 8,
+      "muestras": 8,
+      "promedio_ponderado": 1.0
+    }
+  },
+  "benchmark": {
+    "off_ms": {
+      "n": 30,
+      "promedio": 30.75805332046002,
+      "p50": 30.750849866308272,
+      "p95": 32.13356997584924
+    },
+    "on_ms": {
+      "n": 30,
+      "promedio": 33.959156655085586,
+      "p50": 33.843299956060946,
+      "p95": 35.58820007601753
+    },
+    "delta_ms": {
+      "n": 30,
+      "promedio": 3.201103334625562,
+      "p50": 3.237249911762774,
+      "p95": 4.58218001294881
+    },
+    "sobrecarga_pct": {
+      "n": 30,
+      "promedio": 10.461647511790384,
+      "p50": 10.743437439221887,
+      "p95": 14.961752957965157
+    }
+  },
+  "pares": [
+    {
+      "par": 1,
+      "orden": "off_on",
+      "off_ms": 31.78299986757338,
+      "on_ms": 36.463099997490644,
+      "delta_ms": 4.680100129917264,
+      "sobrecarga_pct": 14.725168012513942,
+      "equivalente": true
+    },
+    {
+      "par": 2,
+      "orden": "off_on",
+      "off_ms": 30.733599793165922,
+      "on_ms": 34.74640008062124,
+      "delta_ms": 4.01280028745532,
+      "sobrecarga_pct": 13.056720704574369,
+      "equivalente": true
+    },
+    {
+      "par": 3,
+      "orden": "off_on",
+      "off_ms": 30.71189997717738,
+      "on_ms": 34.29799992591143,
+      "delta_ms": 3.586099948734045,
+      "sobrecarga_pct": 11.676581232027152,
+      "equivalente": true
+    },
+    {
+      "par": 4,
+      "orden": "on_off",
+      "off_ms": 29.86579993739724,
+      "on_ms": 34.13029992952943,
+      "delta_ms": 4.264499992132187,
+      "sobrecarga_pct": 14.27887416734578,
+      "equivalente": true
+    },
+    {
+      "par": 5,
+      "orden": "on_off",
+      "off_ms": 32.86949987523258,
+      "on_ms": 33.90319994650781,
+      "delta_ms": 1.0337000712752342,
+      "sobrecarga_pct": 3.1448609659380162,
+      "equivalente": true
+    },
+    {
+      "par": 6,
+      "orden": "on_off",
+      "off_ms": 30.197800137102604,
+      "on_ms": 34.510300029069185,
+      "delta_ms": 4.312499891966581,
+      "sobrecarga_pct": 14.280841228126473,
+      "equivalente": true
+    },
+    {
+      "par": 7,
+      "orden": "on_off",
+      "off_ms": 29.906600015237927,
+      "on_ms": 33.11249986290932,
+      "delta_ms": 3.2058998476713896,
+      "sobrecarga_pct": 10.719706840757318,
+      "equivalente": true
+    },
+    {
+      "par": 8,
+      "orden": "off_on",
+      "off_ms": 30.303000006824732,
+      "on_ms": 33.33720006048679,
+      "delta_ms": 3.0342000536620617,
+      "sobrecarga_pct": 10.012870187699932,
+      "equivalente": true
+    },
+    {
+      "par": 9,
+      "orden": "off_on",
+      "off_ms": 29.567900113761425,
+      "on_ms": 33.29179994761944,
+      "delta_ms": 3.723899833858013,
+      "sobrecarga_pct": 12.594400750578984,
+      "equivalente": true
+    },
+    {
+      "par": 10,
+      "orden": "off_on",
+      "off_ms": 30.681600095704198,
+      "on_ms": 34.09640002064407,
+      "delta_ms": 3.414799924939871,
+      "sobrecarga_pct": 11.129797384387345,
+      "equivalente": true
+    },
+    {
+      "par": 11,
+      "orden": "off_on",
+      "off_ms": 31.052199890837073,
+      "on_ms": 33.575200010091066,
+      "delta_ms": 2.523000119253993,
+      "sobrecarga_pct": 8.125028590964607,
+      "equivalente": true
+    },
+    {
+      "par": 12,
+      "orden": "off_on",
+      "off_ms": 30.982899945229292,
+      "on_ms": 35.1504001300782,
+      "delta_ms": 4.167500184848905,
+      "sobrecarga_pct": 13.450968735063842,
+      "equivalente": true
+    },
+    {
+      "par": 13,
+      "orden": "off_on",
+      "off_ms": 31.635799910873175,
+      "on_ms": 33.99230004288256,
+      "delta_ms": 2.356500132009387,
+      "sobrecarga_pct": 7.448840044027025,
+      "equivalente": true
+    },
+    {
+      "par": 14,
+      "orden": "off_on",
+      "off_ms": 30.935100046917796,
+      "on_ms": 33.102700021117926,
+      "delta_ms": 2.1675999742001295,
+      "sobrecarga_pct": 7.006927312058579,
+      "equivalente": true
+    },
+    {
+      "par": 15,
+      "orden": "off_on",
+      "off_ms": 29.80090002529323,
+      "on_ms": 34.12330010905862,
+      "delta_ms": 4.3224000837653875,
+      "sobrecarga_pct": 14.504260207231297,
+      "equivalente": true
+    },
+    {
+      "par": 16,
+      "orden": "on_off",
+      "off_ms": 29.905300121754408,
+      "on_ms": 33.625399926677346,
+      "delta_ms": 3.7200998049229383,
+      "sobrecarga_pct": 12.439600304217569,
+      "equivalente": true
+    },
+    {
+      "par": 17,
+      "orden": "on_off",
+      "off_ms": 30.33389989286661,
+      "on_ms": 33.15049991942942,
+      "delta_ms": 2.81660002656281,
+      "sobrecarga_pct": 9.285321163815036,
+      "equivalente": true
+    },
+    {
+      "par": 18,
+      "orden": "on_off",
+      "off_ms": 30.357100069522858,
+      "on_ms": 33.625700045377016,
+      "delta_ms": 3.2685999758541584,
+      "sobrecarga_pct": 10.767168037686456,
+      "equivalente": true
+    },
+    {
+      "par": 19,
+      "orden": "on_off",
+      "off_ms": 30.76809993945062,
+      "on_ms": 33.624199917539954,
+      "delta_ms": 2.8560999780893326,
+      "sobrecarga_pct": 9.282666085035896,
+      "equivalente": true
+    },
+    {
+      "par": 20,
+      "orden": "on_off",
+      "off_ms": 30.916099902242422,
+      "on_ms": 33.190099988132715,
+      "delta_ms": 2.274000085890293,
+      "sobrecarga_pct": 7.355391181555065,
+      "equivalente": true
+    },
+    {
+      "par": 21,
+      "orden": "on_off",
+      "off_ms": 30.023100087419152,
+      "on_ms": 33.58049993403256,
+      "delta_ms": 3.557399846613407,
+      "sobrecarga_pct": 11.848875819802819,
+      "equivalente": true
+    },
+    {
+      "par": 22,
+      "orden": "off_on",
+      "off_ms": 30.926499981433153,
+      "on_ms": 32.895399956032634,
+      "delta_ms": 1.9688999745994806,
+      "sobrecarga_pct": 6.3663847373014,
+      "equivalente": true
+    },
+    {
+      "par": 23,
+      "orden": "off_on",
+      "off_ms": 31.3595999032259,
+      "on_ms": 35.58380017057061,
+      "delta_ms": 4.224200267344713,
+      "sobrecarga_pct": 13.47019821802694,
+      "equivalente": true
+    },
+    {
+      "par": 24,
+      "orden": "on_off",
+      "off_ms": 31.418300000950694,
+      "on_ms": 34.02059990912676,
+      "delta_ms": 2.6022999081760645,
+      "sobrecarga_pct": 8.282752116114878,
+      "equivalente": true
+    },
+    {
+      "par": 25,
+      "orden": "off_on",
+      "off_ms": 31.314099906012416,
+      "on_ms": 33.78339996561408,
+      "delta_ms": 2.4693000596016645,
+      "sobrecarga_pct": 7.885585301870837,
+      "equivalente": true
+    },
+    {
+      "par": 26,
+      "orden": "on_off",
+      "off_ms": 30.213499907404184,
+      "on_ms": 35.591799998655915,
+      "delta_ms": 5.378300091251731,
+      "sobrecarga_pct": 17.800983360864173,
+      "equivalente": true
+    },
+    {
+      "par": 27,
+      "orden": "on_off",
+      "off_ms": 31.351200072094798,
+      "on_ms": 32.01129985973239,
+      "delta_ms": 0.6600997876375914,
+      "sobrecarga_pct": 2.10550086159265,
+      "equivalente": true
+    },
+    {
+      "par": 28,
+      "orden": "on_off",
+      "off_ms": 29.445100110024214,
+      "on_ms": 33.90759998001158,
+      "delta_ms": 4.462499869987369,
+      "sobrecarga_pct": 15.155322458788879,
+      "equivalente": true
+    },
+    {
+      "par": 29,
+      "orden": "off_on",
+      "off_ms": 30.961700016632676,
+      "on_ms": 33.166800159960985,
+      "delta_ms": 2.205100143328309,
+      "sobrecarga_pct": 7.122025412505533,
+      "equivalente": true
+    },
+    {
+      "par": 30,
+      "orden": "on_off",
+      "off_ms": 32.42040006443858,
+      "on_ms": 35.18449980765581,
+      "delta_ms": 2.76409974321723,
+      "sobrecarga_pct": 8.525803931238734,
+      "equivalente": true
+    }
+  ],
+  "semilla": 20261126,
+  "salud": {
+    "emitidos": 1245,
+    "persistidos": 1245,
+    "descartados": 0,
+    "pendientes": 0,
+    "fallos_validacion": 0,
+    "fallos_almacenamiento": 0,
+    "fallos_instrumentacion": 0
+  },
+  "controles": {
+    "red_bloqueada": 0,
+    "subprocesos_bloqueados": 0,
+    "escrituras_funcionales_bloqueadas": 0,
+    "ipc_socketpair_local": 0
+  },
+  "artefactos_originales_intactos": true,
+  "limites": [
+    "LLM y vectores simulados; no mide calidad de Groq ni precisión semántica del embedding.",
+    "Consistencia solo entre paráfrasis equivalentes, no entre fallas inyectadas distintas.",
+    "Benchmark local en caliente, sin latencia de red; no extrapolar sobrecarga porcentual a producción."
+  ],
+  "aprobado": true,
+  "fuentes_sha256": {
+    "src/agent.py": "15b6ebefe185e80ff1e5ed32fc5e32e17d05158ffb14a90cfbf333423e554457",
+    "src/app.py": "26e553725ce57872769147ead4113ccd088e8d8301e716af2cc07b500c835ecc",
+    "src/cli.py": "6a23569cea3f1135941bf6e76b5944968f4c3bd0d29afe17b6a3d96782a174f8",
+    "src/config.py": "904e48d3b279f72810ec8eae6061713bc80853edda1cb03a421c9e5994ce15de",
+    "src/dashboard_ep3.py": "c7f1cd5f9f3e0b82e5ee2f078b209fbd58deb3f85911e3d3132a22ceb7dd5e1a",
+    "src/guardrails.py": "7541fa4cdc585b0cd98f2ecf4c50a4d80aed0d9f91bf03d5325cd68006c79593",
+    "src/ingest.py": "4c98dba3973064cf7d80d8bf7d53f384ab1c28440dfbed2964a5dfdd180013d1",
+    "src/memory.py": "b6018ca2f9ad17e6e85064959b57008b1ae32b59e060188f6b79b1ee057cb334",
+    "src/prompts.py": "1e176bade0236afa8bbfaa59ddac7c7959531b17794c5e983dfcf79978d08fe9",
+    "src/retriever.py": "a7fb5cbeeef8e50513508f00c6b0dceb618ddbe70559a196a7a861396651eb93",
+    "src/__init__.py": "97fbe91452b99b18880d99c395e00adc7f2162900751e152d6d5500a793aeba1",
+    "src/ep2/agente.py": "f8f8d9aa80bfb8019ae639688159bd59171255bdc6d88ef5de51ee27e71e4804",
+    "src/ep2/almacenamiento.py": "c7087bba05b83a75c4732bd70dba64cdadbbe1fc8348d00bd049df7c44957d99",
+    "src/ep2/cli.py": "2567fc4480bb94565f1e55db4db2d14f2128cac510c8c7e1457f7e6950e3423d",
+    "src/ep2/configuracion.py": "cbd69d8d71bba03d73edb2e27859468ceb710db8e9018093a8ab2b1e96bcf24e",
+    "src/ep2/contexto.py": "f6e77cc2d2af1e55db4bfbc137b4ba02c8715e0b13e3b6e66520a61a95cf1d10",
+    "src/ep2/contratos.py": "943ecdaf3107539102936d29b9b05bce635fa6b6476b5a3b673b8b45deeb5f64",
+    "src/ep2/herramientas.py": "d010c526c5d4c7b6a6a779d120798c096c437191edc73e2d6441dd356ecd5626",
+    "src/ep2/memoria.py": "ae43260c141da37a370c39f28c512d131791005058bb30535be0785754c6dd38",
+    "src/ep2/planificacion.py": "be3c5d82a370a4f473ee69a3eb321eb52ce9cc2bfbd3ef30acaa1f5ba101aac1",
+    "src/ep2/reintentos.py": "4a959a64395c908c806f70614302c4f9f399ba85d633465eb6ef6bc268e55d0d",
+    "src/ep2/__init__.py": "217289c5fd7b92c46ed5ca30db1e3fd18eeb3a2d34449490f6eeef869630f482",
+    "src/ep3/almacenamiento.py": "a6acfa300810e7333e4ce7d4a3a764024d4b0ed607415af9d949efc4b274b1df",
+    "src/ep3/analisis.py": "617aaeacb27230790c4a0a7496e145c7c348ceda1a064810a4bce3ffd523b63b",
+    "src/ep3/contratos.py": "9ca26bfd4f5fbb8fb079b44289bb9eab0b7f2a9ef249d8e0423bfa7799dd56da",
+    "src/ep3/contratos_v2.py": "dc5990ac55f5887917b9f9bca6ade01380f60ec5056f1cbb778ec15dd53bedce",
+    "src/ep3/identidad.py": "7b44f5d1ca2e48f337592ce673e6e584e9aa527be35c3a73c5734c4a9ced8008",
+    "src/ep3/instrumentacion.py": "3bc7052820b8e1cacddf515e5d2fbd56477e3b54d65433d62d590fc832c8b884",
+    "src/ep3/lectura.py": "0e958b44b4ee0f7898a43b0d92597d3ed0d57921507fff06436d3ba693d10306",
+    "src/ep3/observabilidad.py": "f8ea4faf4c53c6b722272a0c7684814a63332910db520f846b17c9817d5dc7fa",
+    "src/ep3/recursos.py": "4a9e990bc097b521001997621769dd7daf1659a2ed70e1c710d28f282b3bab73",
+    "src/ep3/__init__.py": "b36b456bae981b0dd0b07c478491bb46fddf91fa8fc24afae246f87805f33327",
+    "eval/aislamiento_ep3.py": "d24301ad78f83d893b0b346eb387c483c506ae51a96f6b15469f841fe5a0cefe",
+    "eval/analyze_ep3.py": "4a35425dbcba2ed74ce84ca523fc699115177f8ad86b3b3b7e979b1ac024b841",
+    "eval/calibrate_retrieval.py": "174c86791012be5b6a8cb7014b4a3a7127e217a76c750d853233547ccca7891a",
+    "eval/check_ep2_agent.py": "7f3b37f7e14bc83813a37ac54a9b79814d3daf3bda4c96a59419380489cfef2a",
+    "eval/check_ep2_memory.py": "ba22f5c6db41aadda34b65330d1a7405bac4ab0b82919bb1be456308658aaa9c",
+    "eval/check_ep2_plan.py": "24eb6f12bb16c2e61d63febd8e2b3412556ba45b8cd959ca51166c160b8d758c",
+    "eval/check_ep2_retrieval.py": "d6bada2da3135031968c86812b00bc6800db70183015978f4aca4aaea76d9127",
+    "eval/check_ep3_observabilidad.py": "f159074994864846ae055a3bb6420c4802e64225b1c151721ced5a011504d9ac",
+    "eval/check_ep3_regression.py": "d85061d9f1f1afdae098068328a8e5eec5e1b0bb5e655ad7e3b12e87bb942372",
+    "eval/check_groq_tools.py": "790edbbc4a1da19fa36e90367cff61ea2e52bf85891db75f7644f22f6cb585ec",
+    "eval/escenarios_ep3.py": "89973bcd26b770372a984bf8e540a8b2d25da520cf17102a2576547a44fbf4f5",
+    "eval/evaluate.py": "5656b79e5e5427c2bce2e789b848f2c7b60c6b3ac3aca0c1dc8ceb78e2bc6a26",
+    "eval/evaluate_ep3.py": "9f3621d18f696b7c1a4be8d06d8940193d2f374d90ae5da916bf50860799f7e9",
+    "eval/gestion_ep3.py": "63a37f1eb82e1b378c9027b002a07f1a4b784c0ae6064c20fceec2fe9e12f8bb",
+    "eval/__init__.py": "18346b81e405a71a7edad8d9ad4ba761c533a481de7b5b7ee3e338699e05f81c"
+  },
+  "corpus_sha256": {
+    "data/internos/catalogo_servicios_sla.md": "6929fe6a64815f5b238e437e9311ec2b9f694a7ff5d632b20c13a49fe72f3071",
+    "data/internos/kb_accesos_y_cuentas.md": "d835b8758fae2be82a6eea831d19ba497622f5965fdfee80a7a0c7dbdd563545",
+    "data/internos/kb_conectividad_vpn.md": "c205a26653db25cee2c88e83422a0cf1629568fbfb01bb13fd78427b39eb814e",
+    "data/internos/kb_microsoft365.md": "1db4839ea678456d8be78427e685b74caa01f24885fbf6d54851f2aeabad1cfa",
+    "data/internos/kb_terminales_moviles.md": "5aeedcad0821e259d35a6da7b8a59d60b29081400d9481fdc9ba668b9718f020",
+    "data/internos/politica_seguridad_ti.md": "95037c25e41cf52ff85801d85f015d8b056b5d5f5f2a17fa68602717e183c5b2",
+    "data/externos/csirt_avisos_seguridad.md": "c3ee6752c97ab37eba0422c3538087164f302b6f914fa29403eaf40a576920ae",
+    "data/externos/fortinet_vpn.md": "7629ea4fee224c15b4d9acfb0616b680b331aeecc7e8601a07ff8d2d7c98b1f5",
+    "data/externos/microsoft_365_soporte.md": "6bdfa8eef41aae58a62eb146dde2e26f0fe8cc915b4b8d5b4198bea42c9467e9"
+  },
+  "resultados": [
+    {
+      "caso": "ticket_sla",
+      "variante": 1,
+      "estado": "ok",
+      "latencias_ms": [
+        58.079499984160066
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "ticket_sla",
+      "variante": 2,
+      "estado": "ok",
+      "latencias_ms": [
+        35.62710015103221
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "ticket_sla",
+      "variante": 3,
+      "estado": "ok",
+      "latencias_ms": [
+        35.480499966070056
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "rag_kb",
+      "variante": 1,
+      "estado": "ok",
+      "latencias_ms": [
+        29.690199997276068
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "rag_kb",
+      "variante": 2,
+      "estado": "ok",
+      "latencias_ms": [
+        29.706399887800217
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "rag_kb",
+      "variante": 3,
+      "estado": "ok",
+      "latencias_ms": [
+        35.52570007741451
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "impacto",
+      "variante": 1,
+      "estado": "ok",
+      "latencias_ms": [
+        50.205300096422434,
+        60.00819988548756
+      ],
+      "solicitudes_simuladas": 7,
+      "restricciones": true
+    },
+    {
+      "caso": "impacto",
+      "variante": 2,
+      "estado": "ok",
+      "latencias_ms": [
+        48.53869997896254,
+        53.66509989835322
+      ],
+      "solicitudes_simuladas": 7,
+      "restricciones": true
+    },
+    {
+      "caso": "impacto",
+      "variante": 3,
+      "estado": "ok",
+      "latencias_ms": [
+        45.765799935907125,
+        51.525000017136335
+      ],
+      "solicitudes_simuladas": 7,
+      "restricciones": true
+    },
+    {
+      "caso": "nota",
+      "variante": 1,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        27.933599893003702
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "nota",
+      "variante": 2,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        26.555899996310472
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "nota",
+      "variante": 3,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        25.63320007175207
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "posponer",
+      "variante": 1,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        27.009300189092755
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "posponer",
+      "variante": 2,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        28.952899854630232
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "posponer",
+      "variante": 3,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        26.806799927726388
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "sin_procedimiento",
+      "variante": 1,
+      "estado": "sin_contexto",
+      "latencias_ms": [
+        28.159999987110496
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "sin_procedimiento",
+      "variante": 2,
+      "estado": "sin_contexto",
+      "latencias_ms": [
+        29.642999870702624
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "sin_procedimiento",
+      "variante": 3,
+      "estado": "sin_contexto",
+      "latencias_ms": [
+        25.69369995035231
+      ],
+      "solicitudes_simuladas": 2,
+      "restricciones": true
+    },
+    {
+      "caso": "reintento",
+      "variante": 1,
+      "estado": "ok",
+      "latencias_ms": [
+        37.117499858140945
+      ],
+      "solicitudes_simuladas": 3,
+      "restricciones": true
+    },
+    {
+      "caso": "reintento",
+      "variante": 2,
+      "estado": "ok",
+      "latencias_ms": [
+        36.039600148797035
+      ],
+      "solicitudes_simuladas": 4,
+      "restricciones": true
+    },
+    {
+      "caso": "reintento",
+      "variante": 3,
+      "estado": "error",
+      "latencias_ms": [
+        21.301599917933345
+      ],
+      "solicitudes_simuladas": 3,
+      "restricciones": true
+    },
+    {
+      "caso": "seguridad",
+      "variante": 1,
+      "estado": "denegado",
+      "latencias_ms": [
+        20.897499984130263
+      ],
+      "solicitudes_simuladas": 0,
+      "restricciones": true
+    },
+    {
+      "caso": "seguridad",
+      "variante": 2,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        25.12530004605651
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "seguridad",
+      "variante": 3,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        25.75620007701218
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "seguridad",
+      "variante": 4,
+      "estado": "denegado",
+      "latencias_ms": [
+        21.796399960294366
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    },
+    {
+      "caso": "seguridad",
+      "variante": 5,
+      "estado": "requiere_confirmacion",
+      "latencias_ms": [
+        24.547299835830927
+      ],
+      "solicitudes_simuladas": 1,
+      "restricciones": true
+    }
+  ],
+  "procedencia": {
+    "fuente_local": ".cache/ep3/20261126T184710Z/evaluacion_final/evaluacion.json",
+    "sha256_original": "b8fffceccea13a213ce6f7dbaff0cdd612c172b1b70e0a8372099d85c4f4eeaa",
+    "transformacion": "Lista permitida de campos; sin IDs de ejecucion/evaluacion/sesion, consultas, respuestas, rutas absolutas ni claves. Separadores de rutas relativos normalizados."
+  }
+}

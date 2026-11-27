@@ -1,10 +1,56 @@
 # Asistente RAG para Mesa de Ayuda TI — Aconcagua Logística SpA
 
-> **EP1 y EP2 · ISY0101 Ingeniería de Soluciones con IA — Duoc UC**
+> **EP1, EP2 y EP3 · ISY0101 Ingeniería de Soluciones con IA — Duoc UC**
 
 Asistente conversacional con **Retrieval-Augmented Generation (RAG)** que apoya a los agentes de Nivel 1 de la mesa de ayuda de TI de Aconcagua Logística SpA, una empresa chilena de transporte y distribución con 450 colaboradores, 5 sucursales y un centro de distribución.
 
 El sistema recupera el procedimiento aplicable a cada consulta desde la base documental interna y externa, complementa con datos del ITSM vía SQL, y entrega al agente una respuesta con pasos numerados, diagnóstico probable, tiempo comprometido según el SLA, criterio de escalamiento y cita de la fuente.
+
+## Observabilidad EP3 — Ejecución para evaluación académica
+
+Instrumentación opcional v2, compatible con eventos v1, con SQLite exclusiva,
+latencias, RAG, memoria, herramientas, solicitudes LLM/tokens disponibles,
+reintentos, CPU/RAM y confirmaciones. Incluye dashboard Streamlit de solo lectura,
+evaluación offline con referencias y benchmark pareado. Está desactivada por
+defecto y no agrega dependencias. No se llamó a Groq durante la validación EP3.
+
+Para revisar EP3 no se necesita `.env`, API key, ingesta ni recrear el ITSM.
+En una instalación nueva, seguir primero la [preparación de Python 3.12 y del
+entorno](docs/ep3_guia_completa.md#instalación-y-entorno). Ejecutar los siguientes
+comandos desde la raíz del repositorio; cada proceso debe terminar con código 0
+antes de continuar. En PowerShell se puede comprobar con `$LASTEXITCODE`.
+
+Desde PowerShell, con el entorno existente:
+
+```powershell
+$pyEP3 = '.\.venv\Scripts\python.exe'
+$runEP3 = Get-Date -Format 'yyyyMMdd-HHmmss'
+& $pyEP3 -B -m eval.check_ep3_regression --salida ".cache/ep3/regresion-$runEP3"
+& $pyEP3 -B -m eval.evaluate_ep3 --salida ".cache/ep3/evaluacion-$runEP3" --pares 30
+$env:EP3_DASHBOARD_DB = ".cache/ep3/evaluacion-$runEP3/observabilidad.db"
+& $pyEP3 -m streamlit run src/dashboard_ep3.py --server.address=127.0.0.1 --server.port=8503 --browser.gatherUsageStats=false
+```
+
+Cada salida debe ser una carpeta nueva; no se sobrescriben evidencias. El
+dashboard no construye agentes ni necesita claves de API. Las mediciones de los
+comandos anteriores son simuladas y no acreditan rendimiento o calidad de Groq.
+Abrir `http://127.0.0.1:8503` y seleccionar el origen **simulada**; detener con
+Ctrl+C. El dashboard EP3 es independiente de `src/app.py`, la interfaz de EP1.
+Los JSON/CSV publicables y sus límites están en el [índice de evidencias
+EP3](docs/evidencias/ep3/README.md). Las bases SQLite y claves se generan localmente
+y están excluidas de Git.
+
+Para activar la instrumentación de un agente local se configura
+`EP3_OBSERVABILIDAD=1`, el origen correspondiente y una clave HMAC dedicada,
+según la [guía de activación](docs/ep3_guia_completa.md#hmac-estable-y-activación-operativa).
+Esa activación no sustituye las credenciales ni la confirmación humana del agente.
+Las instrucciones para Groq real están separadas y pendientes de ejecución EP3.
+
+Ver [instalación, activación HMAC, interpretación y desactivación](docs/ep3_guia_completa.md),
+[arquitectura y diccionario de métricas](docs/ep3_arquitectura_metricas.md),
+[evidencia de ejecución](docs/evidencias/ep3_desarrollo_tecnico.md),
+[esquema del informe de cinco páginas](docs/ep3_esquema_informe.md) y
+[guía para la defensa y declaración de IA](docs/ep3_defensa.md).
 
 ## Agente EP2 — Etapa 4
 

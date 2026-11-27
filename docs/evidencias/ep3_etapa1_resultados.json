@@ -1,0 +1,172 @@
+{
+  "version_evidencia": 1,
+  "fecha_utc": "2026-11-26T12:27:34.438279+00:00",
+  "git_head_pre_ep3": "8d248c3b9aa90960db13a5de6f9709e91e60637b",
+  "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+  "dependencias_relevantes": {
+    "faiss-cpu": "1.15.1",
+    "langchain": "0.3.30",
+    "langchain-community": "0.3.31",
+    "langchain-core": "0.3.86",
+    "langchain-google-genai": "2.1.12",
+    "langchain-huggingface": "0.1.2",
+    "langchain-openai": "0.3.35",
+    "langsmith": "0.14.8",
+    "openai": "2.54.0",
+    "pydantic": "2.14.1",
+    "pytest": "8.4.2",
+    "sentence-transformers": "6.1.0",
+    "streamlit": "1.66.0"
+  },
+  "linea_base": {
+    "inicio_utc": "2026-11-26T12:05:08.157262+00:00",
+    "pruebas": {
+      "tests": 712,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 712
+    },
+    "duracion_segundos": 40.707,
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0
+    },
+    "artefactos_sin_cambios": true,
+    "aprobado": true
+  },
+  "regresion_final": {
+    "inicio_utc": "2026-11-26T12:24:56.128638+00:00",
+    "pruebas": {
+      "tests": 790,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 790
+    },
+    "duracion_segundos": 47.412,
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0
+    },
+    "artefactos_sin_cambios": true,
+    "codigo_sin_cambios_durante_pruebas": true,
+    "aprobado": true
+  },
+  "pruebas_nuevas": 78,
+  "muestra_simulada": {
+    "version_esquema": 1,
+    "tipo_ejecucion": "simulada",
+    "consultas": 2,
+    "herramientas": 7,
+    "errores_modelo": 1,
+    "reintentos_modelo": 1,
+    "eventos_planificacion": 18,
+    "eventos_total": 31,
+    "latencias_consulta_ms": [
+      53.62239992246032,
+      53.32589987665415
+    ],
+    "salud_telemetria": {
+      "emitidos": 31,
+      "persistidos": 31,
+      "descartados": 0,
+      "pendientes": 0,
+      "fallos_validacion": 0,
+      "fallos_almacenamiento": 0,
+      "fallos_instrumentacion": 0
+    },
+    "controles": {
+      "red_bloqueada": 0,
+      "subprocesos_bloqueados": 0,
+      "escrituras_funcionales_bloqueadas": 0
+    },
+    "verificaciones": {
+      "respuestas_ok": true,
+      "mismo_plan_adaptado": true,
+      "itsm_temporal_intacto": true,
+      "sin_notas": true,
+      "sin_auditoria": true,
+      "cola_vaciada": true,
+      "artefactos_originales_intactos": true
+    },
+    "aprobado": true
+  },
+  "archivos_preexistentes_modificados_por_ep3": [
+    "README.md",
+    "src/agent.py",
+    "src/config.py",
+    "src/ep2/agente.py",
+    "src/ep2/reintentos.py",
+    "src/memory.py"
+  ],
+  "archivos_preexistentes_ausentes": [],
+  "componentes_funcionales_sin_cambios": {
+    "requirements.txt": true,
+    "src/prompts.py": true,
+    "src/ep2/contexto.py": true,
+    "src/ep2/planificacion.py": true,
+    "src/ep2/herramientas.py": true,
+    "src/ep2/configuracion.py": true
+  },
+  "artefactos_originales_sin_cambios": {
+    ".env": true,
+    "data/itsm.db": true,
+    "storage/manifiesto_ingesta.json": true,
+    "storage/ep2/agent.db": true,
+    "storage/faiss_index/configuracion_embeddings.json": true,
+    "storage/faiss_index/index.faiss": true,
+    "storage/faiss_index/index.pkl": true,
+    "storage/faiss_index-respaldo-31ca275fe1f14e568397989cf9a968bb/configuracion_embeddings.json": true,
+    "storage/faiss_index-respaldo-31ca275fe1f14e568397989cf9a968bb/index.faiss": true,
+    "storage/faiss_index-respaldo-31ca275fe1f14e568397989cf9a968bb/index.pkl": true,
+    ".cache/embeddings-antes-huggingface.sqlite": true,
+    ".cache/embeddings.sqlite": true
+  },
+  "codigo_verificado_coincide_con_actual": true,
+  "dependencias_sin_cambios": true,
+  "evidencias_locales": {
+    "pre_ep3/estado.json": ".cache/ep3/20261126T120214Z/pre_ep3/estado.json",
+    "pre_ep3/codigo_previo.zip": ".cache/ep3/20261126T120214Z/pre_ep3/codigo_previo.zip",
+    "baseline_verificada/resultado.json": ".cache/ep3/20261126T120214Z/baseline_verificada/resultado.json",
+    "baseline_verificada/pytest.xml": ".cache/ep3/20261126T120214Z/baseline_verificada/pytest.xml",
+    "regresion_final/resultado.json": ".cache/ep3/20261126T120214Z/regresion_final/resultado.json",
+    "regresion_final/pytest.xml": ".cache/ep3/20261126T120214Z/regresion_final/pytest.xml",
+    "muestra/observabilidad.db": ".cache/ep3/20261126T120214Z/muestra/observabilidad.db",
+    "muestra/resultado.json": ".cache/ep3/20261126T120214Z/muestra/resultado.json",
+    "cambios_ep3_sobre_previo.patch": ".cache/ep3/20261126T120214Z/cambios_ep3_sobre_previo.patch"
+  },
+  "huellas_evidencias": {
+    "pre_ep3/estado.json": "8ce90aec0b8699243824cc8822e7138be4d7335a1ab343a5fd974d171c307046",
+    "pre_ep3/codigo_previo.zip": "f1d03068d9068b14a0da3c41e56820c29ee5b41f21e59fcdc9de8944eb893711",
+    "baseline_verificada/pytest.xml": "5ef1c5f0fb215e9998f66b74546d8f209ed36e460cc768d7bcdb1ac6911d8fa0",
+    "regresion_final/pytest.xml": "f84d0bc1b9135fcda50bb834d33ee9e60f532990f7b60490b20caf3e4b7599bf",
+    "muestra/observabilidad.db": "5f9fd6b2ca5d3d918048964fc3d5128523b060329419b34201221025bb49a3eb"
+  },
+  "limites": [
+    "No se llamó a Groq ni se midió rendimiento de un proveedor real.",
+    "Las duraciones de suite no miden sobrecarga de instrumentación.",
+    "La muestra contiene latencias de un modelo simulado.",
+    "La clave HMAC predeterminada cambia entre recolectores/procesos."
+  ],
+  "archivos_creados_ep3": [
+    "docs/ep3_evento_v1.schema.json",
+    "docs/ep3_observabilidad.md",
+    "docs/ep3_traza_v1.schema.json",
+    "docs/evidencias/ep3_etapa1.md",
+    "docs/evidencias/ep3_etapa1_resultados.json",
+    "eval/aislamiento_ep3.py",
+    "eval/check_ep3_observabilidad.py",
+    "eval/check_ep3_regression.py",
+    "src/ep3/__init__.py",
+    "src/ep3/almacenamiento.py",
+    "src/ep3/contratos.py",
+    "src/ep3/observabilidad.py",
+    "tests/test_ep3_contratos.py",
+    "tests/test_ep3_evaluacion.py",
+    "tests/test_ep3_integracion.py",
+    "tests/test_ep3_observabilidad.py"
+  ]
+}
