@@ -16,6 +16,7 @@ class ConfiguracionAgente(Contrato):
     max_iteraciones: int = Field(default=8, ge=1, le=30)
     max_segundos: float = Field(default=90, gt=0, le=300, allow_inf_nan=False)
     timeout_llm: float = Field(default=30, gt=0, le=60, allow_inf_nan=False)
+    max_reintentos_llm: int = Field(default=2, ge=0, le=2)
 
     @classmethod
     def desde_entorno(cls) -> ConfiguracionAgente:

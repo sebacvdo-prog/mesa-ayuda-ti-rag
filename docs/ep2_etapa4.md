@@ -91,21 +91,44 @@ el registro de ejecución y los esquemas visibles al modelo son independientes.
 Cada resultado actualiza el plan antes de calcular la siguiente oferta. No se
 invoca `preparar()` anticipadamente ni se ejecuta una cola fija de herramientas.
 
-Para acciones obligatorias de un plan estructurado se usa `tool_choice="required"`
-si la firma del adaptador del modelo admite esa opción. No se fuerza una función
-por nombre. Se solicita `parallel_tool_calls=False` cuando la firma lo admite y
-se sigue validando exactamente una selección localmente. `ChatOpenAI 0.3.35`
+Para acciones obligatorias de un plan estructurado se usa `tool_choice="auto"`
+si la firma del adaptador del modelo admite esa opción. Con `required`, una
+respuesta sin llamada puede ser rechazada por Groq con HTTP 400,
+`tool_use_failed`: `Tool choice is required, but model did not call a tool`.
+Con `auto`, esa respuesta llega al validador local, que la rechaza con
+`PLAN_INCOMPLETO` si quedan verificaciones obligatorias disponibles. La corrección
+continúa dentro del mismo `AgentExecutor`, con sus límites de iteraciones y tiempo;
+si el modelo insiste en responder sin herramientas, la tarea termina incompleta.
+No se fuerza una función por nombre. Se solicita `parallel_tool_calls=False`
+cuando la firma lo admite y se sigue validando exactamente una selección
+localmente. `ChatOpenAI 0.3.35`
 admite ambas opciones; una firma que no las acepta recibe solo los esquemas.
-La evaluación integral del 22 de octubre acreditó esos parámetros con la nueva
-proyección: todas sus respuestas fueron HTTP 200. No hay prueba de red previa,
-reintento ni fallback automático a los seis
-esquemas si el proveedor falla. Su validación de herramientas permanece activa.
+La evaluación integral del 22 de octubre usó la selección anterior, `required`,
+con la nueva proyección: todas sus respuestas fueron HTTP 200. No valida este
+cambio a `auto`. Los ensayos diagnósticos históricos del evaluador conservan
+explícitamente `required` o la selección por nombre, según su modo.
+No hay prueba de red previa ni fallback automático a los seis esquemas si el
+proveedor falla. Su validación de herramientas permanece activa. La CLI permite
+ahora hasta dos reintentos de la misma inferencia ante HTTP 429 temporal, con
+esperas de hasta 10 s y sin reiniciar el ejecutor ni repetir herramientas.
+Respeta la espera indicada por el proveedor cuando cabe en ese límite y en el
+presupuesto restante; si no cabe, conserva el error. El evaluador auditado sigue
+deteniéndose al primer 429, con reintentos desactivados explícitamente. Ver la
+[evidencia de reintentos HTTP 429](evidencias/ep2_reintentos_429.md).
 
 La oferta vacía distingue `plan_completado`, `solo_estado`, `plan_bloqueado` y
 `sin_permisos`. Los dos primeros permiten responder sin esquemas; los dos últimos
 detienen el ciclo con error o denegación del servidor, sin llamar al modelo para
 que declare éxito. La traza indica si hubo respuesta del modelo; una decisión de
 detención del servidor no equivale a una solicitud HTTP.
+
+En planes estructurados completos con lecturas correctas y procedencia, EP2
+compone ahora la respuesta final localmente antes de otra llamada al proveedor.
+La selección de cada herramienta permanece en el LLM. No se envían el contexto
+final ni sus tokens de salida a Groq; la traza final conserva
+`modelo_respondio=false`. El modo flexible, la lectura de estado, los errores y
+las confirmaciones mantienen sus controles. Ver la
+[evidencia de cierre local](evidencias/ep2_cierre_local.md).
 
 Para solicitudes simples se permite sustituir una lectura prevista por la
 lectura elegida por el modelo, registrando la cancelación del candidato original.
@@ -139,6 +162,13 @@ ejecutor. Se comprueban los límites globales,
 `POSPONER`, cero notas/auditoría y la detención ante 400 sin reintentos. Una segunda
 prueba simula un proveedor que devuelve una selección excluida con HTTP 200: la
 validación local sigue impidiendo su ejecución y conserva el límite de ocho.
+Las regresiones de `auto` simulan texto sin llamadas antes de consultar ticket,
+antes de consultar SLA y antes de proponer la nota: el servidor rechaza la
+finalización prematura sin alterar el plan ni consumir intentos de herramientas,
+y solo continúa al recibir una selección habilitada. Ocho respuestas de texto
+consecutivas agotan el presupuesto sin completar pasos ni registrar notas.
+Estas pruebas usan HTTP simulado; no se hicieron llamadas reales a Groq para
+validar el cambio a `auto`.
 
 Riesgo residual: Groq puede generar una herramienta omitida y devolver HTTP 400.
 El filtrado evita ofrecer una herramienta prematura, pero no garantiza una

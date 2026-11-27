@@ -23,6 +23,7 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from src import config
+from src.ep3.instrumentacion import kwargs_callbacks, observar_etapa
 
 Resumidor = Callable[[Sequence[BaseMessage], str], str]
 """Firma de un resumidor: recibe los mensajes que salen y el resumen previo."""
@@ -94,7 +95,7 @@ def crear_resumidor_llm(llm: Any) -> Resumidor:
             f"Conversación:\n{conversacion}"
         )
         try:
-            respuesta = config.reintentar_con_backoff(llm.invoke, instruccion)
+            respuesta = config.reintentar_con_backoff(llm.invoke, instruccion, _componente_ep3="modelo", **kwargs_callbacks())
             texto = getattr(respuesta, "content", str(respuesta))
             return " ".join(str(texto).split())
         except Exception:  # noqa: BLE001 - el resumen es accesorio, no crítico
@@ -152,6 +153,7 @@ class HistorialConVentanaYResumen(BaseChatMessageHistory):
             return [cabecera, *self._mensajes]
         return list(self._mensajes)
 
+    @observar_etapa('memoria', 'historial')
     def add_messages(self, messages: Iterable[BaseMessage]) -> None:
         """Agrega mensajes al historial y aplica la ventana.
 

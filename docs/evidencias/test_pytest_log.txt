@@ -1,7 +1,7 @@
 ============================= test session starts =============================
-platform win32 -- Python 3.11.15, pytest-8.4.2, pluggy-1.6.0 -- C:\Users\Administrator\venvs\mesa-rag\Scripts\python.exe
+platform win32 -- Python 3.11.15, pytest-8.4.2, pluggy-1.6.0 -- <RUTA_LOCAL>
 cachedir: .pytest_cache
-rootdir: C:\Users\Administrator\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\scratch-workspaces\4c40fff9-6db3-4a06-9e6b-9740d37d75d3\e6ee93d3-bbdc-43e8-a4d2-4de93c8bef21\scratch-2026-09-07-863cf5\mesa-ayuda-ti-rag
+rootdir: <REPOSITORIO>
 plugins: anyio-4.15.1, langsmith-0.12.2
 collecting ... collected 88 items
 
@@ -96,7 +96,7 @@ tests/test_retriever.py::test_datos_estructurados_se_arman_solo_si_hay_identific
 
 ============================== warnings summary ===============================
 ..\..\..\..\..\..\..\..\..\..\..\..\venvs\mesa-rag\Lib\site-packages\_pytest\cacheprovider.py:475
-  C:\Users\Administrator\venvs\mesa-rag\Lib\site-packages\_pytest\cacheprovider.py:475: PytestCacheWarning: could not create cache path C:\Users\Administrator\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\scratch-workspaces\4c40fff9-6db3-4a06-9e6b-9740d37d75d3\e6ee93d3-bbdc-43e8-a4d2-4de93c8bef21\scratch-2026-09-07-863cf5\mesa-ayuda-ti-rag\.pytest_cache\v\cache\nodeids: [WinError 206] El nombre del archivo o la extensión es demasiado largo: 'C:\\Users\\Administrator\\AppData\\Local\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\scratch-workspaces\\4c40fff9-6db3-4a06-9e6b-9740d37d75d3\\e6ee93d3-bbdc-43e8-a4d2-4de93c8bef21\\scratch-2026-09-07-863cf5\\mesa-ayuda-ti-rag\\pytest-cache-files-we95fo18'
+  <REPOSITORIO>\.pytest_cache\v\cache\nodeids: [WinError 206] El nombre del archivo o la extensión es demasiado largo: '<REPOSITORIO>\\pytest-cache-files-we95fo18'
     config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

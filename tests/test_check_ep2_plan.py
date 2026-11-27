@@ -415,6 +415,7 @@ def cli_simulada(tmp_path, monkeypatch):
     monkeypatch.setattr(herramientas.HerramientasEP2, "confirmar_nota", confirmar)
     modelos, peticiones = [], []
     def fabricar(opciones):
+        assert opciones.max_reintentos_llm == 0  # El evaluador conserva detención inmediata.
         modelo = ChatOpenAI(model=opciones.modelo, api_key="falsa", base_url="https://sin-red.invalid/v1",
                             max_retries=0)
         modelos.append(modelo)
@@ -429,6 +430,10 @@ def cli_simulada(tmp_path, monkeypatch):
             if error_proveedor is not None:
                 return httpx.Response(codigo, json=error_proveedor)
             ofrecidas = {t["function"]["name"] for t in peticiones[-1].get("tools", [])}
+            if codigo == 200 and peticiones[-1].get("tool_choice") == "required" and not mensaje.get("tool_calls"):
+                return httpx.Response(400, json={"error": {
+                    "message": "Tool choice is required, but model did not call a tool",
+                    "type": "invalid_request_error", "code": "tool_use_failed"}})
             if codigo == 200 and validar_herramientas and any(
                     c["function"]["name"] not in ofrecidas for c in mensaje.get("tool_calls", [])):
                 return httpx.Response(400, json={"error": {"message": "Herramienta excluida gsk_secreto",
@@ -446,7 +451,7 @@ def mensaje_herramienta(nombre, **argumentos):
             "function": {"name": nombre, "arguments": json.dumps(argumentos)}}]}
 
 
-def test_instrumentacion_cli_real_posponer_memoria_y_diez_peticiones_simuladas(tmp_path, cli_simulada):
+def test_instrumentacion_cli_real_posponer_memoria_y_nueve_peticiones_simuladas(tmp_path, cli_simulada):
     import builtins
     from src.ep2 import cli
     simular, confirmar, modelos, peticiones, almacen_original = cli_simulada
@@ -456,7 +461,6 @@ def test_instrumentacion_cli_real_posponer_memoria_y_diez_peticiones_simuladas(t
         mensaje_herramienta("consultar_ticket", ticket_id=ticket),
         mensaje_herramienta("consultar_sla", prioridad="P2"),
         mensaje_herramienta("buscar_procedimiento", consulta="VPN FortiClient"),
-        {"role": "assistant", "content": "Datos consultados."},
         mensaje_herramienta("consultar_ticket", ticket_id=ticket),
         mensaje_herramienta("consultar_sla", prioridad="P2"),
         mensaje_herramienta("analizar_incidente", ticket_id=ticket),
@@ -480,19 +484,20 @@ def test_instrumentacion_cli_real_posponer_memoria_y_diez_peticiones_simuladas(t
     assert all(p["notas"] == p["auditoria"] == 0 for p in fases)
     assert fases[1]["cantidad_confirmaciones"] == 1 and fases[2]["cantidad_confirmaciones"] == 0
     assert fases[2]["plan_recuperado_antes"]["id"] == fases[1]["plan_final"]["id"]
-    assert len(peticiones) == 10 and consumo.total(consumo.leer()) == 120
+    assert len(peticiones) == 9 and consumo.total(consumo.leer()) == 108
     assert [len(p["decisiones"]) for p in fases] == [4, 5, 1]
-    assert all(d["modelo_respondio"] for p in fases for d in p["decisiones"])
+    assert sum(d["modelo_respondio"] for p in fases for d in p["decisiones"]) == 9
+    assert not fases[0]["decisiones"][-1]["modelo_respondio"]
     assert fases[2]["decisiones"][0]["codigo"] == "RESPUESTA_FINAL"
     assert all("texto" not in d and "argumentos" not in d for p in fases for d in p["decisiones"])
     assert all(p.get("max_tokens", p.get("max_completion_tokens")) == 321 for p in peticiones)
     assert all(m.root_client.max_retries == 0 for m in modelos)
     assert not consumo.leer()["motivo_detencion"]
     esperadas = [[n] for n in ("consultar_ticket", "consultar_sla", "buscar_procedimiento")]
-    esperadas += [[]] + [[n] for n in ("consultar_ticket", "consultar_sla", "analizar_incidente", "buscar_procedimiento", "registrar_nota_ticket")] + [[]]
+    esperadas += [[n] for n in ("consultar_ticket", "consultar_sla", "analizar_incidente", "buscar_procedimiento", "registrar_nota_ticket")] + [[]]
     assert [[t["function"]["name"] for t in p.get("tools", [])] for p in peticiones] == esperadas
-    assert [d["herramientas_ofrecidas"] for f in fases for d in f["decisiones"]] == esperadas
-    assert all(p.get("tool_choice") == "required" and p.get("parallel_tool_calls") is False
+    assert [d["herramientas_ofrecidas"] for f in fases for d in f["decisiones"] if d["modelo_respondio"]] == esperadas
+    assert all(p.get("tool_choice") == "auto" and p.get("parallel_tool_calls") is False
                for p in peticiones if p.get("tools"))
     assert all("tool_choice" not in p for p in peticiones if not p.get("tools"))
     # El resultado sigue como observación fechada; no se reenvía el scratchpad.
@@ -644,7 +649,6 @@ def mensajes_integrales():
     return [mensaje_herramienta("consultar_ticket", ticket_id=ticket),
             mensaje_herramienta("consultar_sla", prioridad="P2"),
             mensaje_herramienta("buscar_procedimiento", consulta="VPN FortiClient"),
-            {"role": "assistant", "content": "Consultado."},
             mensaje_herramienta("consultar_ticket", ticket_id=ticket),
             mensaje_herramienta("consultar_sla", prioridad="P2"),
             mensaje_herramienta("analizar_incidente", ticket_id=ticket),
@@ -661,22 +665,70 @@ def test_integral_completo_con_cli_payloads_filtrados_y_memoria_real_temporal(in
     assert intento["aprobado"] and all(intento["verificaciones"].values())
     assert len(intento["verificaciones"]) == 15
     assert fases == ["inicial", "impacto", "reanudar"] and len(set(directorios)) == 1
-    assert intento["cantidad_solicitudes"] == len(peticiones) == 10
-    assert intento["tokens_informados"]["total_informado"] == 120
+    assert intento["cantidad_solicitudes"] == len(peticiones) == 9
+    assert intento["tokens_informados"]["total_informado"] == 108
     assert intento["solicitudes_con_estimacion"] == 0
     assert all(p["notas"] == p["auditoria"] == 0 for p in intento["pasos"])
     assert intento["pasos"][2]["plan_recuperado_antes"]["id"] == intento["pasos"][1]["plan_final"]["id"]
     decisiones = [d for p in intento["pasos"] for d in p["decisiones"]]
-    assert [d["herramientas_ofrecidas"] for d in decisiones] == [
+    assert [d["herramientas_ofrecidas"] for d in decisiones if d["modelo_respondio"]] == [
         [t["function"]["name"] for t in p.get("tools", [])] for p in peticiones]
-    assert [d["tool_choice"] for d in decisiones] == ["required"] * 3 + ["none"] + ["required"] * 5 + ["none"]
+    assert decisiones[3]["codigo"] == "RESPUESTA_FINAL" and not decisiones[3]["modelo_respondio"]
+    assert [d["tool_choice"] for d in decisiones] == ["auto"] * 3 + ["none"] + ["auto"] * 5 + ["none"]
+    confirmar.assert_not_called()
+
+
+@pytest.mark.parametrize("indice,fase,herramienta", [
+    (0, "inicial", "consultar_ticket"), (1, "inicial", "consultar_sla"),
+    (7, "impacto", "registrar_nota_ticket"),
+])
+def test_auto_corrige_texto_sin_herramienta_y_completa_verificaciones(integral_cli, indice, fase, herramienta):
+    simular, confirmar, _, peticiones, fases, _ = integral_cli
+    mensajes = mensajes_integrales()
+    mensajes.insert(indice, {"role": "assistant", "content": "Todo listo sin mas verificaciones."})
+    simular(mensajes)
+    assert correr() == 0
+    intento = evidencia()
+    assert intento["aprobado"] and all(intento["verificaciones"].values())
+    assert fases == ["inicial", "impacto", "reanudar"]
+    assert len(peticiones) == intento["cantidad_solicitudes"] == 10
+    assert all(s["http_status"] == 200 for s in intento["solicitudes"])
+    assert peticiones[indice]["tool_choice"] == "auto"
+    decisiones = [d for p in intento["pasos"] for d in p["decisiones"] if d["modelo_respondio"]]
+    rechazo = decisiones[indice]
+    assert rechazo["codigo"] == "PLAN_INCOMPLETO" and rechazo["estado"] == "rechazada"
+    assert rechazo["modelo_respondio"] and not rechazo["ejecutada"] and not rechazo["seleccion"]
+    assert rechazo["herramientas_ofrecidas"] == [herramienta]
+    assert rechazo["plan_antes"] == rechazo["plan_despues"]
+    correccion = json.loads(peticiones[indice + 1]["messages"][-1]["content"])["correccion_servidor"]
+    assert "Quedan verificaciones habilitadas" in correccion and herramienta in correccion
+    assert decisiones[indice + 1]["ejecutada"]
+    assert intento["solicitudes"][indice]["fase"] == fase
+    assert all(p["notas"] == p["auditoria"] == 0 for p in intento["pasos"])
+    assert intento["pasos"][1]["estado"] == "requiere_confirmacion"
+    confirmar.assert_not_called()
+
+
+def test_auto_texto_insistente_agota_presupuesto_sin_completar_plan(integral_cli):
+    simular, confirmar, _, peticiones, fases, _ = integral_cli
+    simular([{"role": "assistant", "content": "Todo completado sin herramientas."}] * 8)
+    assert correr() == 1
+    intento = evidencia()
+    assert not intento["aprobado"] and fases == ["inicial"]
+    assert len(peticiones) == intento["cantidad_solicitudes"] == 8
+    assert all(p["tool_choice"] == "auto" for p in peticiones)
+    paso = intento["pasos"][0]
+    assert paso["estado"] == "limite" and not paso["herramientas"]
+    assert all(d["codigo"] == "PLAN_INCOMPLETO" and not d["ejecutada"] for d in paso["decisiones"])
+    assert all(p["estado"] == "bloqueado" and p["intentos"] == 0 for p in paso["plan_final"]["pasos"])
+    assert paso["notas"] == paso["auditoria"] == 0
     confirmar.assert_not_called()
 
 
 @pytest.mark.parametrize("fase", ["inicial", "impacto"])
 def test_modelo_que_insiste_en_analisis_excluido_provoca_400_sin_reintentos(integral_cli, fase):
     simular, confirmar, modelos, peticiones, fases, _ = integral_cli
-    previos = mensajes_integrales()[:4] if fase == "impacto" else []
+    previos = mensajes_integrales()[:3] if fase == "impacto" else []
     # Simula validacion del proveedor: no se acepta una funcion ausente del schema.
     simular(previos + [mensaje_herramienta("analizar_incidente", ticket_id="INC-2026-0411")] * 8)
     assert correr() == 1
@@ -900,7 +952,7 @@ def test_integral_400_guarda_diagnostico_sanitizado_y_preserva_historicos(integr
     assert s["diagnostico_proveedor"]["categoria"] == "HERRAMIENTA_REQUERIDA_AUSENTE"
     assert intento["pasos"][0]["consumo"][0] == s
     assert s["solicitud"]["herramientas_ofrecidas"] == ["consultar_ticket"]
-    assert s["solicitud"]["tool_choice"] == "required"
+    assert s["solicitud"]["tool_choice"] == "auto"
     assert s["solicitud"]["cantidad_mensajes"] == len(peticiones[0]["messages"])
     assert json.loads((evaluador.config.DIR_CACHE / "ep2_plan_controlado.json").read_text())["intentos"][0] == previo
     assert historico.read_bytes() == b"historico protegido"
@@ -1366,8 +1418,9 @@ def test_diagnostico_compara_inicio_e_impacto_sin_orden_invertido(tmp_path):
                              'input':evaluador.PREGUNTAS['inicial'], 'agent_scratchpad':[]})
     _ModeloPlanificado(llm, inicial).bind_tools(agente.herramientas).invoke(mensajes)
     assert [m.type for m in llm.mensajes] == ['system','system','system','human','system']
-    assert llm.oferta == ['consultar_ticket'] and llm.opciones['tool_choice'] == 'required'
+    assert llm.oferta == ['consultar_ticket'] and llm.opciones['tool_choice'] == 'auto'
     assert not any(p.herramienta in ('analizar_incidente','registrar_nota_ticket') for p in inicial.plan.pasos)
+    # El ensayo histórico fija required; el agente de producción usa auto.
     modelo, mensajes, _, impacto = evaluador.preparar_impacto_diagnostico(tmp_path/'impacto', llm)
     modelo.invoke(mensajes)
     assert [m.type for m in llm.mensajes] == ['system','system','human','ai','system','human','system']

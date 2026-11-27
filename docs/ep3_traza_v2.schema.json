@@ -1,0 +1,108 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "version_esquema": {
+      "const": 2,
+      "default": 2,
+      "title": "Version Esquema",
+      "type": "integer"
+    },
+    "ejecucion_id": {
+      "format": "uuid",
+      "title": "Ejecucion Id",
+      "type": "string"
+    },
+    "sesion_ref": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sesion Ref"
+    },
+    "tipo_ejecucion": {
+      "enum": [
+        "real",
+        "simulada",
+        "historica"
+      ],
+      "title": "Tipo Ejecucion",
+      "type": "string"
+    },
+    "pipeline": {
+      "enum": [
+        "ep1",
+        "ep2"
+      ],
+      "title": "Pipeline",
+      "type": "string"
+    },
+    "inicio_utc": {
+      "format": "date-time",
+      "title": "Inicio Utc",
+      "type": "string"
+    },
+    "correlacion": {
+      "enum": [
+        "estable",
+        "desactivada"
+      ],
+      "title": "Correlacion",
+      "type": "string"
+    },
+    "clave_id": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{16}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Clave Id"
+    },
+    "categoria": {
+      "default": "interactiva",
+      "enum": [
+        "interactiva",
+        "ticket_sla",
+        "rag_kb",
+        "impacto",
+        "nota",
+        "posponer",
+        "sin_procedimiento",
+        "reintento",
+        "seguridad",
+        "benchmark"
+      ],
+      "title": "Categoria",
+      "type": "string"
+    },
+    "operacion": {
+      "default": "consulta",
+      "enum": [
+        "consulta",
+        "confirmacion",
+        "posponer"
+      ],
+      "title": "Operacion",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ejecucion_id",
+    "tipo_ejecucion",
+    "pipeline",
+    "inicio_utc",
+    "correlacion"
+  ],
+  "title": "TrazaV2",
+  "type": "object"
+}

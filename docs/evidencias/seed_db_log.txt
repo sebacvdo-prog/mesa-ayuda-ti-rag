@@ -1,4 +1,4 @@
-Base de datos creada en: C:\Users\Administrator\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\scratch-workspaces\4c40fff9-6db3-4a06-9e6b-9740d37d75d3\e6ee93d3-bbdc-43e8-a4d2-4de93c8bef21\scratch-2026-09-07-863cf5\mesa-ayuda-ti-rag\data\itsm.db
+Base de datos creada en: <REPOSITORIO>\data\itsm.db
 --------------------------------------------------------------
   usuarios                12 filas
   categorias_servicio      6 filas

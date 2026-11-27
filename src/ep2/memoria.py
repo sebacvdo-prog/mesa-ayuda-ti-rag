@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from pydantic import Field
 
 from src import guardrails
+from src.ep3.instrumentacion import observar_etapa
 from src.ep2.almacenamiento import AlmacenEP2
 from src.ep2.contratos import ContextoEjecucion, Contrato, PlanEjecucion, RespuestaAgenteEP2, ResultadoHerramienta
 from src.ep2.herramientas import contiene_credenciales
@@ -202,6 +203,7 @@ class MemoriaEP2:
             raise ValueError("Memoria fuera de límites.")
         return self._acotar(EstadoMemoria.model_validate_json(fila["contenido"]))
 
+    @observar_etapa('memoria', 'recuperar')
     def recuperar(self) -> EstadoMemoria:
         with self.almacen._conexion() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -245,6 +247,7 @@ class MemoriaEP2:
             else:
                 raise ValueError("Memoria fuera de límites.")
 
+    @observar_etapa('memoria', 'guardar')
     def _guardar(self, transformar: Callable[[EstadoMemoria], EstadoMemoria]) -> EstadoMemoria:
         with self.almacen._conexion() as c:
             c.execute("BEGIN IMMEDIATE")

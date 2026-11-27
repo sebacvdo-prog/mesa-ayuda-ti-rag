@@ -400,14 +400,15 @@ class _SinOperacionesDiagnostico:
         raise RuntimeError("OPERACION_NO_PERMITIDA_EN_DIAGNOSTICO")
 
 
-class _SeleccionExplicitaDiagnostico:
-    """Adapta únicamente bind_tools del ensayo; conserva el control y prompt reales."""
+class _SeleccionDiagnostico:
+    """Fija la selección del ensayo histórico, independiente del enlace del agente."""
 
-    def __init__(self, llm):
-        self.llm = llm
+    def __init__(self, llm, *, seleccion_explicita: bool = False):
+        self.llm, self.seleccion_explicita = llm, seleccion_explicita
 
     def bind_tools(self, herramientas, **opciones):
-        return self.llm.bind_tools(herramientas, **{**opciones, "tool_choice": _tool_choice_diagnostico(True)})
+        return self.llm.bind_tools(herramientas, **{
+            **opciones, "tool_choice": _tool_choice_diagnostico(self.seleccion_explicita)})
 
 
 def preparar_contexto_minimo(directorio: Path, llm):
@@ -426,7 +427,7 @@ def preparar_contexto_minimo(directorio: Path, llm):
     # Solo objeto de configuración del catálogo: no recuperar, incorporar ni guardar memoria.
     memoria = MemoriaEP2(almacen, contexto, limites=LimitesMemoria())
     agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=_SinOperacionesDiagnostico(),
-                       opciones=ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30))
+                       opciones=ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30, max_reintentos_llm=0))
     herramientas = [h for h in agente.herramientas if h.name == "consultar_ticket"]
     if len(herramientas) != 1:
         raise RuntimeError("OFERTA_DIAGNOSTICA_INVALIDA")
@@ -483,7 +484,7 @@ def preparar_impacto_diagnostico(directorio: Path, llm, *, seleccion_explicita: 
                                              ticket_activo=estado.ticket_activo)
     servicio = HerramientasEP2(contexto, almacen, conector=_SinOperacionesDiagnostico())
     agente = AgenteEP2(servicio, llm=llm, memoria=memoria, recuperador=_SinOperacionesDiagnostico(),
-                       opciones=ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30))
+                       opciones=ConfiguracionAgente(modelo="openai/gpt-oss-20b", timeout_llm=30, max_reintentos_llm=0))
     ofrecidas, tipo = _oferta_herramientas(impacto, agente.herramientas, contexto.perfil)
     if [h.name for h in ofrecidas] != ["consultar_ticket"] or tipo != "acciones_obligatorias":
         raise RuntimeError("OFERTA_DIAGNOSTICA_INVALIDA")
@@ -494,8 +495,8 @@ def preparar_impacto_diagnostico(directorio: Path, llm, *, seleccion_explicita: 
     mensajes = prompt.invoke({"memoria": memoria.mensajes(estado), "plan": impacto.contexto(),
                               "input": PREGUNTAS["impacto"], "agent_scratchpad": []})
     # Solo Runnable del modelo: no crear AgentExecutor, parser ni despachador de herramientas.
-    enlace = _SeleccionExplicitaDiagnostico(llm) if seleccion_explicita else llm
-    modelo = _ModeloPlanificado(enlace, impacto, perfil=contexto.perfil).bind_tools(agente.herramientas)
+    enlace = _SeleccionDiagnostico(llm, seleccion_explicita=seleccion_explicita)
+    modelo = _ModeloPlanificado(enlace, impacto, perfil=contexto.perfil, max_reintentos=0).bind_tools(agente.herramientas)
     return modelo, mensajes, almacen, impacto
 
 
@@ -715,7 +716,8 @@ def paso_real(fase: str, directorio: Path, limites: Limites) -> dict:
         mostrar(tipo, valor)
     def crear(servicio):
         opciones = ConfiguracionAgente.desde_entorno().model_copy(update={
-            "max_segundos": limites.segundos_fase, "timeout_llm": limites.timeout_llm})
+            "max_segundos": limites.segundos_fase, "timeout_llm": limites.timeout_llm,
+            "max_reintentos_llm": 0})  # El evaluador auditado se detiene al primer 429.
         llm = crear_llm_ep2(opciones)
         recursos.callback(llm.root_client.close)
         # Se cambia solo el cliente de esta prueba. El agente y su fabrica quedan intactos.

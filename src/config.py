@@ -28,6 +28,8 @@ from typing import Any, Callable, Iterable, TypeVar
 
 from dotenv import load_dotenv
 from langchain_core.embeddings import Embeddings
+from src.ep3.observabilidad import observar_intento, registrar_reintento
+from src.ep3.instrumentacion import observar_llamada, dormir_observado
 
 # ---------------------------------------------------------------------------
 # Rutas del proyecto
@@ -206,12 +208,14 @@ def es_error_de_cuota(error: BaseException) -> bool:
     return any(marca in texto for marca in _MARCAS_DE_CUOTA)
 
 
+@observar_llamada('cadena', condicion='_componente_ep3')
 def reintentar_con_backoff(
     funcion: Callable[..., T],
     *args: Any,
     intentos: int = 5,
     espera_base: float = 2.0,
     espera_maxima: float = 60.0,
+    _componente_ep3: str | None = None,
     **kwargs: Any,
 ) -> T:
     """Ejecuta ``funcion`` reintentando con retroceso exponencial ante HTTP 429.
@@ -238,6 +242,8 @@ def reintentar_con_backoff(
     ultimo_error: BaseException | None = None
     for intento in range(intentos):
         try:
+            if _componente_ep3 == "modelo":
+                return observar_intento(funcion, *args, intento_ep3=intento + 1, **kwargs)
             return funcion(*args, **kwargs)
         except Exception as error:  # noqa: BLE001 - se re-lanza si no es de cuota
             if not es_error_de_cuota(error):
@@ -253,7 +259,9 @@ def reintentar_con_backoff(
                 f"Reintentando en {espera:.1f} s...",
                 flush=True,
             )
-            time.sleep(espera)
+            if _componente_ep3 == "modelo":
+                registrar_reintento(error, intento + 1, espera)
+            dormir_observado(time.sleep, espera)
 
     raise ErrorDeCuota(
         "Se agotó la cuota gratuita del proveedor (HTTP 429). Esto NO es un error "

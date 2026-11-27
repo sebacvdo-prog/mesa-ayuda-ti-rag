@@ -102,9 +102,9 @@ def test_contexto_se_recalcula_por_paso_con_observaciones_y_dependencias(entorno
         AIMessage(content="Verificado")])
     r = AgenteEP2(servicio, llm=llm, memoria=memoria).responder(f"Consulta ticket {TICKET}, su SLA y activo.")
     assert r.estado == "ok"
-    vistas = [vista(llm, n) for n in range(4)]
+    vistas = [vista(llm, n) for n in range(3)]
     assert [v["herramientas_habilitadas"] for v in vistas] == [
-        ["consultar_ticket"], ["consultar_sla", "consultar_activo"], ["consultar_activo"], []]
+        ["consultar_ticket"], ["consultar_sla", "consultar_activo"], ["consultar_activo"]]
     assert vistas[0]["observaciones_turno"] == []
     assert vistas[1]["observaciones_turno"][0]["datos"]["prioridad"] == "P2"
     assert all(v["entidades"]["ticket_id"] == TICKET for v in vistas)
@@ -201,10 +201,16 @@ def test_nueva_observacion_replantea_contexto_y_marca_resultados_superados(entor
     servicio.analizar_incidente = cambiar
     llm = Modelo(responses=[llamada("consultar_ticket", ticket_id=TICKET), llamada("consultar_sla", prioridad="P2"),
         llamada("analizar_incidente", ticket_id=TICKET), AIMessage(content="Resultado")])
-    r = AgenteEP2(servicio, llm=llm).responder(f"Consulta ticket {TICKET}, SLA y analiza el incidente.")
+    agente = AgenteEP2(servicio, llm=llm)
+    consulta = f"Consulta ticket {TICKET}, SLA y analiza el incidente."
+    r = agente.responder(consulta)
     assert r.estado == "ok"
-    final = vista(llm, 3)
-    assert final["plan"]["prioridad_registrada"] == prioridad and final["plan"]["prioridad_propuesta"] is None
+    # Ya no se envía una proyección final a Groq: se inspecciona la misma vista
+    # pura localmente para conservar la cobertura de vigencia y procedencia.
+    final = json.loads(proyectar_contexto(agente._planificador, consulta=consulta,
+        memoria=agente._estado_memoria, observaciones=agente._observaciones, habilitadas=[],
+        estado_oferta="plan_completado", perfil=servicio.contexto.perfil)[-1].content)
+    assert r.plan_final.prioridad_registrada == prioridad and r.plan_final.prioridad_propuesta is None
     actual = {o["herramienta"]: o for o in final["observaciones_turno"]}
     assert actual["consultar_ticket"]["vigencia"] == "requiere_revalidacion"
     assert actual["consultar_sla"]["vigencia"] == ("requiere_revalidacion" if prioridad == "P1" else "observada_en_este_turno")

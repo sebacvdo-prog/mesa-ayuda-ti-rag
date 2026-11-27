@@ -9,13 +9,16 @@ consultas parametrizadas se comporten como en producción.
 from __future__ import annotations
 
 import sys
+import warnings
 from pathlib import Path
 from typing import Any
 
 import pytest
 from langchain_core.documents import Document
+from pydantic import ValidationError
 
 from src import config, retriever
+from tests.utilidades import crear_faiss_de_prueba
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "data"))
 import seed_db  # noqa: E402 - se importa tras ajustar el path
@@ -244,6 +247,45 @@ def test_buscar_pasa_el_filtro_de_fuente_al_indice() -> None:
     recuperador.buscar("¿Qué dice el aviso del CSIRT sobre la campaña de MFA?")
 
     assert almacen.filtros_recibidos[-1] == {"fuente": "externa"}
+
+
+@pytest.mark.parametrize("umbral", [0, 0.471764, 0.72])
+def test_faiss_real_descarta_scores_invalidos_sin_perder_procedimiento(umbral):
+    valido = construir_fragmento(documento="kb_conectividad_vpn.md").documento
+    lejano = construir_fragmento(documento="lejano.md").documento
+    opuesto = construir_fragmento(documento="opuesto.md").documento
+    almacen = crear_faiss_de_prueba([
+        (valido, [0.95, (1 - 0.95**2)**0.5]), (lejano, [0.0, 1.0]), (opuesto, [-1.0, 0.0]),
+    ])
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Relevance scores must be between 0 and 1")
+        resultados = retriever.RecuperadorVectorial(almacen=almacen, umbral=umbral).buscar("procedimiento VPN")
+    assert [f.nombre_documento for f in resultados] == ["kb_conectividad_vpn.md"]
+    # Se conserva la escala calibrada; no se sustituye por coseno ni se infla el score.
+    assert resultados[0].puntaje == pytest.approx(1 - 0.1 / 2**0.5)
+
+
+def test_faiss_real_conserva_filtros_de_fuente_y_acceso():
+    publico = construir_fragmento(documento="publico.md").documento
+    privado = construir_fragmento(documento="privado.md", nivel="restringido_agentes").documento
+    externo = construir_fragmento(documento="externo.md", fuente="externa").documento
+    almacen = crear_faiss_de_prueba([(privado, [1.0, 0.0]), (externo, [1.0, 0.0]),
+                                   (publico, [0.95, (1 - 0.95**2)**0.5])])
+    recuperador = retriever.RecuperadorVectorial(almacen=almacen)
+    resultados = recuperador.buscar("VPN", perfil="usuario_final", clasificacion="interna")
+    assert [f.nombre_documento for f in resultados] == ["publico.md"]
+
+
+def test_faiss_real_vecino_mas_cercano_no_basta_si_no_supera_umbral():
+    documento = construir_fragmento(documento="fortinet_vpn.md", fuente="externa").documento
+    almacen = crear_faiss_de_prueba([(documento, [0.4, (1 - 0.4**2)**0.5])])
+    assert retriever.RecuperadorVectorial(almacen=almacen, umbral=0.471764).buscar("VPN") == []
+
+
+@pytest.mark.parametrize("puntaje", [-0.1, float("nan"), float("inf"), 1.1])
+def test_fragmento_rechaza_puntajes_fuera_del_contrato(puntaje):
+    with pytest.raises(ValidationError):
+        construir_fragmento(puntaje=puntaje)
 
 
 # ---------------------------------------------------------------------------

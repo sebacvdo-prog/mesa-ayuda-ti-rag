@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "version_esquema": {
+      "const": 1,
+      "default": 1,
+      "title": "Version Esquema",
+      "type": "integer"
+    },
+    "ejecucion_id": {
+      "format": "uuid",
+      "title": "Ejecucion Id",
+      "type": "string"
+    },
+    "sesion_ref": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sesion Ref",
+      "type": "string"
+    },
+    "tipo_ejecucion": {
+      "enum": [
+        "real",
+        "simulada",
+        "historica"
+      ],
+      "title": "Tipo Ejecucion",
+      "type": "string"
+    },
+    "pipeline": {
+      "enum": [
+        "ep1",
+        "ep2"
+      ],
+      "title": "Pipeline",
+      "type": "string"
+    },
+    "inicio_utc": {
+      "format": "date-time",
+      "title": "Inicio Utc",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ejecucion_id",
+    "sesion_ref",
+    "tipo_ejecucion",
+    "pipeline",
+    "inicio_utc"
+  ],
+  "title": "Traza",
+  "type": "object"
+}
